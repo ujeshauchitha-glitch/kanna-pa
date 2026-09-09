@@ -89,18 +89,23 @@ currency (never combining currencies) and return `Money` objects the service phr
   `vision.document`, then parses and persists it through the exact same `Money.parse`/
   `normalize_date`/dedup path as every other entry method — see `docs/VISION.md` for the full pipeline
   and why letting vision *read* a printed amount doesn't compromise the "LLM never computes a total"
-  rule above. **Statement import** (a PDF bank/card statement, as opposed to a CSV export already
-  covered above) remains interface-only (`finance/imports/interfaces.py`) — it needs multi-page,
-  multi-transaction document structure extraction beyond what single-receipt extraction does. Kanna
-  never asks for bank login credentials for any of this.
+  rule above.
+- **Statement import** (`finance.imports.statement`, Phase 2): reads a bank/card statement image or
+  multi-page PDF — every row through the same `Money.parse`/`normalize_date`/dedup path. Imports debit
+  (spend) rows only; credit rows (deposits, refunds, income — outside what `Transaction` represents)
+  are reported, never silently dropped or misrepresented as spend — see `docs/VISION.md` for the full
+  reasoning. Kanna never asks for bank login credentials for either import path — only a file the user
+  already has.
 
 ## Deterministic test coverage
 
 `tests/test_money.py`, `test_finance_nlp.py`, `test_finance_transactions.py`,
 `test_finance_budgets.py`, `test_finance_recurring.py`, `test_finance_csv.py`,
-`test_finance_dates.py`, `test_finance_receipt_import.py`, `test_finance_receipt_tool.py` cover
-parsing/rounding, category assignment, date-boundary filtering, monthly/category totals,
-multi-currency separation, budget status, month-end recurrence rollover, import dedup/error-
-reporting, and receipt extraction (missing amount, missing/unparseable date, currency fallback,
-duplicate detection, vision-provider failure) — all against `vision.document.fake.FakeDocumentProvider`,
-never the network. See `docs/TESTING.md`.
+`test_finance_dates.py`, `test_finance_receipt_import.py`, `test_finance_receipt_tool.py`,
+`test_finance_statement_import.py`, `test_finance_statement_tool.py` cover parsing/rounding, category
+assignment, date-boundary filtering, monthly/category totals, multi-currency separation, budget
+status, month-end recurrence rollover, import dedup/error-reporting, receipt extraction (missing
+amount, missing/unparseable date, currency fallback, duplicate detection, vision-provider failure),
+and statement extraction (debit-only import, credit/unclear-direction rows reported not imported,
+per-row error tolerance, a statement that's entirely credits succeeding with nothing created) — all
+against `vision.document.fake.FakeDocumentProvider`, never the network. See `docs/TESTING.md`.

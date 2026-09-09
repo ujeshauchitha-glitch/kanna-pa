@@ -16,6 +16,7 @@ from core.tools.schema import array, integer, obj, string
 from finance.export import to_csv, to_json
 from finance.imports.csv_import import import_csv
 from finance.imports.receipt import import_receipt
+from finance.imports.statement import import_statement
 from finance.service import FinanceService
 from vision._common import guess_mime_type
 from vision.document.anthropic_document import AnthropicDocumentProvider
@@ -224,10 +225,77 @@ class FinanceImportReceiptTool:
                                "transaction_id": result.created_transaction_ids[0], "error": ""})
 
 
+class FinanceImportStatementTool:
+    """Imports spend (debit) transactions from a bank/card statement image or PDF.
+
+    Same vision-reads-only-finance-parses discipline as receipt import
+    (`finance/imports/statement.py`). Unlike receipt import (exactly one
+    expected transaction, so any error is total failure), a statement's
+    rows are reported with the same tolerant partial-success shape as
+    `finance_import_csv` — a skipped credit row or one unparseable row
+    doesn't fail the whole import.
+    """
+
+    name = "finance_import_statement"
+    description = ("Import spend (debit) transactions from a bank/card statement image or PDF "
+                    "(path within the sandbox, may be multi-page). Credit rows are reported, not "
+                    "imported — see docs/FINANCE.md.")
+    permission = PermissionLevel.LOW
+    input_schema = obj(
+        {
+            "path": string(description="Path to the statement image/PDF, within the sandbox"),
+            "mime_type": string(description="Override the guessed mime type, e.g. 'application/pdf'",
+                                 default=""),
+        },
+        required=("path",),
+    )
+    output_schema = obj({"created": integer(), "skipped_duplicates": integer(), "error_count": integer()})
+
+    def __init__(self, provider: DocumentProvider | None = None) -> None:
+        self._provider = provider
+
+    def execute(self, args: dict, ctx: ToolContext) -> ToolResult:
+        try:
+            resolved = ctx.sandbox.resolve(args["path"])
+        except SandboxViolation as exc:
+            return ToolResult.fail("sandbox_violation", str(exc))
+
+        if not resolved.exists() or not resolved.is_file():
+            return ToolResult.fail("not_found", f"file does not exist: {resolved}")
+
+        mime_type = args.get("mime_type") or ""
+        if not mime_type:
+            try:
+                mime_type = guess_mime_type(resolved)
+            except ValueError as exc:
+                return ToolResult.fail("unsupported_file_type", str(exc))
+
+        provider = self._provider or AnthropicDocumentProvider(
+            model=ctx.settings.llm_model, max_tokens=ctx.settings.llm_max_tokens,
+        )
+        svc = _service(ctx)
+        result = import_statement(
+            resolved.read_bytes(), mime_type=mime_type, tx_repo=svc.transactions,
+            cat_repo=svc.categories, provider=provider, default_currency=svc.default_currency,
+        )
+
+        # row_number == 0 is this module's convention for a whole-document
+        # failure (provider error, no transactions found at all) rather
+        # than a per-row issue — only that case fails the tool call.
+        document_level_error = next((e for e in result.errors if e.row_number == 0), None)
+        if document_level_error and result.created == 0 and result.skipped_duplicates == 0:
+            return ToolResult.fail("statement_extraction_failed", document_level_error.error)
+
+        return ToolResult.ok({
+            "created": result.created, "skipped_duplicates": result.skipped_duplicates,
+            "error_count": len(result.errors),
+        }, metadata={"errors": [{"row": e.row_number, "error": e.error} for e in result.errors]})
+
+
 ALL_TOOLS = [
     FinanceAddTransactionTool(), FinanceQueryTool(), FinanceSetBudgetTool(),
     FinanceAddRecurringTool(), FinanceImportCsvTool(), FinanceExportTool(),
-    FinanceImportReceiptTool(),
+    FinanceImportReceiptTool(), FinanceImportStatementTool(),
 ]
 
 

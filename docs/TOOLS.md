@@ -46,10 +46,11 @@ these all rely on.
 | `finance_add_recurring` | Register a recurring expense |
 | `finance_import_csv` | Import transactions from CSV text (deduped) |
 | `finance_import_receipt` | Log a transaction by reading a receipt image/PDF (vision-backed, see `docs/VISION.md`) |
+| `finance_import_statement` | Import debit transactions from a bank/card statement image/PDF, possibly multi-page (vision-backed) |
 | `finance_export` | Export transactions as CSV or JSON |
 
-`finance_import_receipt` additionally needs `ANTHROPIC_API_KEY` (it uses
-`vision.document.anthropic_document.AnthropicDocumentProvider` by default) — without one it fails
+`finance_import_receipt`/`finance_import_statement` additionally need `ANTHROPIC_API_KEY` (they use
+`vision.document.anthropic_document.AnthropicDocumentProvider` by default) — without one they fail
 cleanly with a `VisionUnavailable`-derived error rather than crashing or fabricating a transaction.
 
 ## Documents (`documents/tools.py`)

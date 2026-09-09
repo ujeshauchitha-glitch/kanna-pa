@@ -31,14 +31,15 @@ tools/
 finance/        money.py (exact integer-minor-unit arithmetic), models.py, repository.py (SQL),
                 dates.py (shared date-string normalization), nlp.py (deterministic NL parsing),
                 analytics.py (the only place a total is computed), recurring.py (occurrence math),
-                imports/ (csv_import.py, receipt.py — vision-backed, interfaces.py), export.py,
-                service.py (orchestration), tools.py (registry-exposed finance_* tools)
+                imports/ (csv_import.py, receipt.py, statement.py — both vision-backed,
+                interfaces.py), export.py, service.py (orchestration), tools.py (registry-exposed
+                finance_* tools)
 
 vision/
   _common.py    Shared Anthropic-client + content-block helpers
   ocr/          OCRProvider protocol, AnthropicOCRProvider (real), FakeOCRProvider (tests)
-  document/     DocumentProvider protocol, AnthropicDocumentProvider (real, receipt extraction),
-                FakeDocumentProvider (tests)
+  document/     DocumentProvider protocol, AnthropicDocumentProvider (real — receipt and multi-page
+                statement extraction), FakeDocumentProvider (tests)
 
 documents/      model.py (shared Document/Section/TableData content model, format-independent),
                 docx_writer.py / pptx_writer.py / pdf_writer.py (one real renderer each, offline —

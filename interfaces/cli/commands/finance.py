@@ -7,6 +7,7 @@ import sys
 from core.bootstrap import Kanna
 from finance.imports.csv_import import import_csv
 from finance.imports.receipt import import_receipt
+from finance.imports.statement import import_statement
 from finance.service import FinanceService
 from vision._common import guess_mime_type
 from vision.document.anthropic_document import AnthropicDocumentProvider
@@ -53,6 +54,13 @@ def register(subparsers: argparse._SubParsersAction) -> None:
     import_receipt_p.add_argument("--mime-type", default=None,
                                    help="Override the guessed mime type, e.g. image/png")
     import_receipt_p.set_defaults(func=_cmd_import_receipt)
+
+    import_statement_p = finance_sub.add_parser(
+        "import-statement", help="Import spend transactions from a bank/card statement image or PDF")
+    import_statement_p.add_argument("path")
+    import_statement_p.add_argument("--mime-type", default=None,
+                                     help="Override the guessed mime type, e.g. application/pdf")
+    import_statement_p.set_defaults(func=_cmd_import_statement)
 
     export_p = finance_sub.add_parser("export", help="Export transactions")
     export_p.add_argument("--start-date", default=None)
@@ -151,6 +159,41 @@ def _cmd_import_receipt(args: argparse.Namespace, kanna: Kanna) -> int:
         print("This receipt was already imported (duplicate) — nothing new logged.")
         return 0
     print(f"Logged transaction {result.created_transaction_ids[0]} from receipt.")
+    return 0
+
+
+def _cmd_import_statement(args: argparse.Namespace, kanna: Kanna) -> int:
+    svc = _service(kanna)
+    try:
+        with open(args.path, "rb") as fh:
+            file_bytes = fh.read()
+    except OSError as exc:
+        print(f"error: could not read {args.path}: {exc}", file=sys.stderr)
+        return 1
+
+    mime_type = args.mime_type
+    if not mime_type:
+        try:
+            mime_type = guess_mime_type(args.path)
+        except ValueError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+
+    provider = AnthropicDocumentProvider(model=kanna.settings.llm_model,
+                                          max_tokens=kanna.settings.llm_max_tokens)
+    result = import_statement(file_bytes, mime_type=mime_type, tx_repo=svc.transactions,
+                               cat_repo=svc.categories, provider=provider,
+                               default_currency=svc.default_currency)
+
+    document_level_error = next((e for e in result.errors if e.row_number == 0), None)
+    if document_level_error and result.created == 0 and result.skipped_duplicates == 0:
+        print(f"error: {document_level_error.error}", file=sys.stderr)
+        return 1
+
+    print(f"Imported {result.created} transaction(s), skipped {result.skipped_duplicates} duplicate(s), "
+          f"{len(result.errors)} row(s) not imported.")
+    for err in result.errors:
+        print(f"  row {err.row_number}: {err.error}", file=sys.stderr)
     return 0
 
 

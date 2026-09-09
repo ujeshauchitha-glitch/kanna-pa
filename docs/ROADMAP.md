@@ -5,18 +5,22 @@ planner (rule-based + LLM), finance subsystem, filesystem/process tools, schedul
 CLI. Phase 2 added, in order: **vision** (OCR + receipt structure extraction, Anthropic-vision-backed,
 plus the concrete `finance/imports/receipt.py` consumer left as an interface-only placeholder in
 Phase 1), **document generation** (DOCX/PPTX/PDF from one shared content model, fully offline —
-`python-docx`/`python-pptx`/`reportlab`, no LLM or network in the rendering path itself), and a real
+`python-docx`/`python-pptx`/`reportlab`, no LLM or network in the rendering path itself), a real
 **`ComputerAgent` backend** (`FedoraAgent`, X11-based via `xdotool`/`scrot`/`xclip`, validated against
-a live virtual display — see `docs/DEVICES.md`). Everything below is not yet built.
+a live virtual display — see `docs/DEVICES.md`), and **statement extraction** (multi-page bank/card
+statement reading, extending `vision/document/` beyond single-receipt extraction, plus the concrete
+`finance/imports/statement.py` consumer — the other interface-only placeholder from Phase 1).
+Everything below is not yet built.
 
 ## Vision (done, Phase 2) — what's left in this area
 
 - No offline/local OCR provider (would need `tesseract` or similar; not installed in this
   environment, but `vision/ocr/base.py`'s `OCRProvider` Protocol means one can be added without
   touching callers).
-- Only receipt extraction is implemented under `vision/document/`. Generic multi-page document
-  structure extraction (needed for PDF assignment reading and bank statement import) is a distinct,
-  larger piece of work — see item 2 below.
+- Receipt and statement extraction only — no *generic* document structure extraction (arbitrary
+  sections/headings/tables, not a fixed receipt or transaction-row shape) yet. That's what PDF
+  assignment reading (extract questions, instructions, reference material) still needs — see item 1
+  below.
 - No `vision/image/` (general description/editing) or `vision/screen/` (screenshot understanding,
   tied to `tools/computer/` — now that a real `ComputerAgent` exists, this is more reachable than it
   was) yet.
@@ -46,13 +50,22 @@ a live virtual display — see `docs/DEVICES.md`). Everything below is not yet b
   with `vision/ocr` for that is possible today (both are real tools) but no tool/workflow wires them
   together yet.
 
+## Statement extraction (done, this pass) — what's left in this area
+
+- Debit-only — no income/credit tracking, since `Transaction` has no signed-amount or income/expense
+  representation. Credit rows are reported (visible, not silently dropped), not imported — see
+  `finance/imports/statement.py`'s docstring and `docs/FINANCE.md` for the reasoning and where that
+  boundary would move if Kanna grows income tracking later.
+- The statement-specific JSON shape (fixed transaction-row fields) doesn't generalize to arbitrary
+  documents — this doesn't unlock PDF assignment reading, which needs genuinely generic structure
+  extraction instead (see item 1 below).
+
 ## Next candidates, roughly in order of leverage
 
-1. **Generic document structure extraction.** Extend `vision/document/` beyond single-receipt
-   extraction to multi-page/multi-section documents — unlocks PDF assignment reading (extract
-   questions, instructions, reference material) and bank statement import (`StatementImporter` in
-   `finance/imports/interfaces.py`, still unimplemented). Likely a new `extract_structure()` method
-   alongside `extract_receipt()`, since the receipt-specific JSON shape doesn't generalize cleanly.
+1. **Generic document structure extraction.** Extend `vision/document/` with a third shape — arbitrary
+   sections/headings/paragraphs/tables, not a fixed receipt or statement-row schema — to unlock PDF
+   assignment reading (extract questions, instructions, reference material). Likely a new
+   `extract_structure()` method alongside `extract_receipt()`/`extract_statement()`.
 2. **Browser tool.** Navigation, page reading, form interaction, screenshots — critically, every
    action must be followed by an observation step (never assume a click succeeded), matching the
    agent loop's existing verify-after-execute pattern. Playwright is already available in this

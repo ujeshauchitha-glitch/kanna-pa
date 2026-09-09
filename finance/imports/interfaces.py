@@ -1,11 +1,12 @@
 """Interfaces for import sources.
 
-`csv_import.py` and, as of Phase 2, `receipt.py` are real implementations.
-Bank statement files (beyond a plain CSV export, already covered by
-`csv_import.import_csv`) still need document-layout understanding beyond
-single-receipt extraction, so only the shape is defined here for that one
-— there is deliberately no fake/stub implementation that would silently
-produce made-up transactions.
+`csv_import.py`, `receipt.py`, and, as of this pass, `statement.py` are
+all real implementations. Both `ReceiptImporter` and `StatementImporter`
+below are kept only as documented Protocol shapes — the actual code is
+module-level functions (`import_receipt`, `import_statement`) taking
+explicit repositories and a `vision.document.base.DocumentProvider`,
+following `csv_import.import_csv`'s style rather than a method-on-an-
+object shape. Nothing in `finance` constructs either Protocol directly.
 """
 from __future__ import annotations
 
@@ -13,12 +14,7 @@ from typing import Protocol
 
 from finance.imports.csv_import import ImportResult
 
-# `finance.imports.receipt.import_receipt` is the real implementation —
-# a module-level function taking explicit repositories and a
-# `vision.document.base.DocumentProvider`, following the same style as
-# `csv_import.import_csv` rather than this Protocol's method-on-an-object
-# shape. It's kept for reference/future alternate implementations, but
-# nothing in `finance` currently constructs a `ReceiptImporter` directly.
+
 class ReceiptImporter(Protocol):
     """Extracts a transaction from a photographed/scanned receipt.
 
@@ -31,13 +27,15 @@ class ReceiptImporter(Protocol):
 
 
 class StatementImporter(Protocol):
-    """Extracts transactions from a bank/card statement file (PDF or CSV export).
+    """Extracts transactions from a bank/card statement file (image or PDF, possibly multi-page).
 
     Never requires bank login credentials — only a file the user already
-    has (a downloaded statement). A PDF statement importer needs
-    multi-page/multi-transaction document understanding beyond what
-    `vision.document`'s single-receipt extraction does today; the CSV
-    case is already covered by `finance.imports.csv_import.import_csv`.
+    has (a downloaded statement). See `finance.imports.statement.
+    import_statement` for the real, in-use implementation — it imports
+    debit (spend) rows only; see that module's docstring for why credit
+    rows are reported, not silently dropped or misrepresented as spend.
+    A plain CSV export of a statement is already covered by
+    `finance.imports.csv_import.import_csv` instead.
     """
 
     def import_statement(self, file_bytes: bytes, *, default_currency: str) -> ImportResult: ...

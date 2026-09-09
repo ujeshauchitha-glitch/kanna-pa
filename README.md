@@ -31,10 +31,12 @@ Optionally, `pip install -e ".[llm]"` and `export ANTHROPIC_API_KEY=...` to enab
 planner for open-ended requests beyond what the built-in rule-based planner recognizes. Kanna runs
 fully offline without it — the rule-based planner and the finance NLP parser never need an LLM.
 
-`pip install -e ".[vision]"` + the same `ANTHROPIC_API_KEY` additionally enables reading receipts:
+`pip install -e ".[vision]"` + the same `ANTHROPIC_API_KEY` additionally enables reading receipts and
+bank/card statements (multi-page PDFs supported; debit rows only — see `docs/FINANCE.md`):
 
 ```bash
 python main.py finance import-receipt path/to/receipt.jpg
+python main.py finance import-statement path/to/statement.pdf
 ```
 
 `pip install -e ".[documents]"` enables generating DOCX/PPTX/PDF files — fully offline, no API key:
@@ -59,7 +61,7 @@ core/          agent loop, planner, tool protocol/registry, permissions, memory 
                logging, events, LLM provider abstraction, task system
 tools/         filesystem, process execution, computer control (FedoraAgent — real, X11-based)
 finance/       transactions, categories, budgets, recurring expenses, import/export, analytics
-vision/        OCR + receipt structure extraction, Anthropic-vision-backed
+vision/        OCR + receipt/statement structure extraction, Anthropic-vision-backed
 documents/     DOCX/PPTX/PDF generation from one shared content model, fully offline
 automation/    scheduler (once/interval/weekly schedules)
 interfaces/    CLI

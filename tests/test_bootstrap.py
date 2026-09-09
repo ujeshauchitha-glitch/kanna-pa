@@ -9,7 +9,8 @@ def test_build_registry_includes_every_subsystem():
     names = set(registry.names())
     assert {"fs_read_file", "fs_write_file", "fs_delete"} <= names
     assert "process_run" in names
-    assert {"finance_add_transaction", "finance_query", "finance_import_receipt"} <= names
+    assert {"finance_add_transaction", "finance_query", "finance_import_receipt",
+            "finance_import_statement"} <= names
     assert {"document_generate_docx", "document_generate_pptx", "document_generate_pdf"} <= names
     assert {"computer_screenshot", "computer_click", "computer_inspect_screen"} <= names
 

@@ -2,9 +2,10 @@
 
 ## Status: one real provider, Anthropic-backed
 
-Phase 2 adds `vision/`, with two capabilities implemented — OCR (plain text transcription) and
-receipt structure extraction — both backed by Claude's multimodal vision, and both following the
-same "protocol + swappable implementation + fake for tests" pattern as `core/llm/`.
+Phase 2 adds `vision/`, with three capabilities implemented — OCR (plain text transcription), receipt
+structure extraction, and multi-transaction statement extraction — all backed by Claude's multimodal
+vision, and all following the same "protocol + swappable implementation + fake for tests" pattern as
+`core/llm/`.
 
 This environment has no local OCR engine (`tesseract` is not installed — see the environment note in
 `KANNA_SPEC.md`), so there is no offline/local provider in Phase 2. That's an environment fact, not a
@@ -21,8 +22,10 @@ vision/
     anthropic_ocr.py    Real implementation — Claude transcribes an image/PDF verbatim
     fake.py             FakeOCRProvider for tests
   document/
-    base.py             DocumentProvider protocol, ReceiptExtraction, LineItem
-    anthropic_document.py  Real implementation — one Claude call reads + structures a receipt
+    base.py             DocumentProvider protocol, ReceiptExtraction, LineItem,
+                        StatementExtraction, StatementTransaction
+    anthropic_document.py  Real implementation — one Claude call reads + structures a receipt or a
+                        (possibly multi-page) statement
     fake.py             FakeDocumentProvider for tests
 ```
 
@@ -39,19 +42,26 @@ calibrated confidence score, and fabricating one would violate the same "never i
 principle the finance subsystem holds itself to. Requires `ANTHROPIC_API_KEY`; raises
 `VisionUnavailable` (not a silent empty result) when it's missing.
 
-## Document extraction (`vision/document/`) — currently scoped to receipts
+## Document extraction (`vision/document/`) — receipts and statements
 
-`DocumentProvider.extract_receipt(file_bytes, *, mime_type) -> ReceiptExtraction`. Deliberately
-returns **raw, unparsed strings** — `date_text`, `currency_code`, `total_amount_text` — not a `date`
-or a `Money`. Converting "340.50" or "15/03/2024" into an exact value is `finance`'s job
-(`finance.money.Money.parse`, `finance.dates.normalize_date`), not vision's. This keeps the dependency
-direction one-way: `finance` depends on `vision`, never the other way around.
+`DocumentProvider.extract_receipt(file_bytes, *, mime_type) -> ReceiptExtraction` and
+`.extract_statement(file_bytes, *, mime_type) -> StatementExtraction` (the latter accepts a
+multi-page PDF — Claude's document content block supports that directly, no page-splitting needed).
+Both deliberately return **raw, unparsed strings** — `date_text`, `currency_code`/`account_currency`,
+`total_amount_text`/`amount_text` — not a `date` or a `Money`. Converting "340.50" or "15/03/2024"
+into an exact value is `finance`'s job (`finance.money.Money.parse`, `finance.dates.normalize_date`),
+not vision's. This keeps the dependency direction one-way: `finance` depends on `vision`, never the
+other way around.
 
-`AnthropicDocumentProvider` asks Claude for one JSON object (merchant, date, currency, total_amount,
-line_items, notes), explicitly instructed to use `null` rather than guess anything it can't
-confidently read. The response is parsed defensively — `parse_receipt_json()` is a pure function,
-independently unit-tested, that tolerates missing/null fields but drops (with a note, never silently)
-any field that comes back the wrong type.
+`AnthropicDocumentProvider` asks Claude for one JSON object per call — for a receipt: merchant, date,
+currency, total_amount, line_items, notes; for a statement: account_currency and a list of
+transaction rows (date, description, amount, `direction`: `"debit"`/`"credit"`/`null`) — explicitly
+instructed to use `null` rather than guess anything it can't confidently read, and told to leave
+`direction` `null` (never guess) when it genuinely can't tell debit from credit. Both responses are
+parsed defensively: `parse_receipt_json()`/`parse_statement_json()` are pure functions, independently
+unit-tested, that tolerate missing/null fields but drop (with a note, never silently) any field that
+comes back the wrong type, and skip (with a note) any transaction row that isn't even a JSON object
+rather than losing every other real row in the statement over one bad one.
 
 ### This is extraction, not computation
 
@@ -84,26 +94,56 @@ attached to the transaction (surfaced, not hidden). Exposed as `finance_import_r
 permission tool, same risk class as `finance_add_transaction`) and `kanna finance import-receipt
 <path>`.
 
+## Statement import (`finance/imports/statement.py`)
+
+The `StatementImporter` interface's real implementation — same pipeline as receipt import, but over
+every row `extract_statement()` returns instead of one document-level total:
+
+```
+statement image/PDF bytes (possibly multi-page)
+  → DocumentProvider.extract_statement()                (vision — reads every row on every page)
+  → for each row: Money.parse(amount_text, currency)      (finance — same exact parsing)
+  → normalize_date(date_text) or today                    (finance — same date handling)
+  → category via existing keyword rules                    (finance — same inference)
+  → Transaction, deduped by content_hash                   (finance — same dedup as CSV/receipt)
+```
+
+**Only debit rows become transactions.** Kanna's finance subsystem tracks *spending* — every other
+entry path (NL, CSV, receipt) records a purchase, and `Transaction` has no signed-amount or income/
+expense field. A statement mixes debits (spend — fits the model) with credits (deposits, refunds,
+incoming transfers — money *in*, which doesn't). Rather than invent a sign convention or silently drop
+credits, each credit row — and each row whose direction the model couldn't determine — is reported in
+the result as an explained skip: visible, never silently lost, never misrepresented as a purchase. A
+statement that's all credits (a paycheck-only account, say) is still a *successful* read that simply
+imports nothing — that's not a tool failure. Exposed as `finance_import_statement` (LOW permission)
+and `kanna finance import-statement <path>`.
+
 ## Testing
 
 Every test uses `FakeOCRProvider`/`FakeDocumentProvider` (`vision/ocr/fake.py`,
 `vision/document/fake.py`) — no test in the suite touches the network or requires
-`ANTHROPIC_API_KEY`. `parse_receipt_json()` is tested directly as a pure function (valid data, all-
-null data, wrong-typed fields, malformed line items) independent of any actual API call. See
-`tests/test_vision_ocr.py`, `tests/test_vision_document.py`, `tests/test_finance_dates.py`,
-`tests/test_finance_receipt_import.py`, `tests/test_finance_receipt_tool.py`.
+`ANTHROPIC_API_KEY`. `parse_receipt_json()`/`parse_statement_json()` are tested directly as pure
+functions (valid data, all-null data, wrong-typed fields, malformed rows/line items) independent of
+any actual API call. See `tests/test_vision_ocr.py`, `tests/test_vision_document.py`,
+`tests/test_vision_statement.py`, `tests/test_finance_dates.py`, `tests/test_finance_receipt_import.py`,
+`tests/test_finance_receipt_tool.py`, `tests/test_finance_statement_import.py`,
+`tests/test_finance_statement_tool.py`.
 
 Manually verified end-to-end that the failure path is honest: with no `ANTHROPIC_API_KEY` set,
-`kanna finance import-receipt <path>` fails clearly (`VisionUnavailable`, surfaced as a normal tool
-error) rather than crashing or fabricating a transaction.
+`kanna finance import-receipt <path>` and `kanna finance import-statement <path>` both fail clearly
+(`VisionUnavailable`, surfaced as a normal tool error) rather than crashing or fabricating a
+transaction.
 
 ## Known limitations
 
 - No offline/local OCR provider (would need `tesseract` or similar, not installed in this
   environment).
-- Receipt extraction only — no generic multi-page document structure extraction yet (needed for PDF
-  assignment reading, planned in `docs/ROADMAP.md`).
+- Receipt and statement extraction only — no *generic* document structure extraction yet (e.g. for
+  reading a PDF assignment's questions/instructions, planned in `docs/ROADMAP.md`; a statement's
+  fixed transaction-row shape doesn't generalize to arbitrary documents).
+- Statement import only imports debit rows — no income/credit tracking (see
+  `finance/imports/statement.py`'s docstring for the reasoning and where that boundary would move).
 - No image editing/generation, no screenshot-understanding tied to `tools/computer/` yet.
-- `AnthropicDocumentProvider` makes one API call per receipt; no batching, no caching of a re-imported
-  identical file (though the resulting transaction is still deduped by content hash — you'd just pay
-  for a redundant API call, not get a duplicate row).
+- `AnthropicDocumentProvider` makes one API call per document; no batching, no caching of a
+  re-imported identical file (though the resulting transactions are still deduped by content hash per
+  row — you'd just pay for a redundant API call, not get duplicate rows).

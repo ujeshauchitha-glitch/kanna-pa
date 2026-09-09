@@ -33,9 +33,9 @@ skipping — see `docs/DEVICES.md` for what it actually validates and the real b
 `tests/test_computer_tools.py` covers the tool layer (schema, permissions, error translation) via
 `tools.computer.fake.FakeComputerAgent` instead, so that coverage never depends on a display.
 
-As of this writing: **233 tests when a display is available (221 + 12 skipped without one), all
-passing**, covering every Phase 1 subsystem plus Phase 2 vision, document generation, and computer
-control.
+As of this writing: **257 tests when a display is available (245 + 12 skipped without one), all
+passing**, covering every Phase 1 subsystem plus Phase 2 vision (receipts and statements), document
+generation, and computer control.
 
 ## Layout
 
@@ -59,8 +59,11 @@ control.
 | `test_finance_dates.py` | Date-string normalization across every supported format, unrecognized-format error |
 | `test_vision_ocr.py` | `FakeOCRProvider` scripted results/responder callback |
 | `test_vision_document.py` | `FakeDocumentProvider` + `parse_receipt_json` (valid, all-null, wrong-typed fields, malformed line items) as a pure function |
+| `test_vision_statement.py` | `FakeDocumentProvider` statement scripting + `parse_statement_json` (valid, all-null, wrong-typed fields, non-object rows skipped without losing valid ones, unrecognized `direction` rejected) as a pure function |
 | `test_finance_receipt_import.py` | Receipt → transaction: happy path + category inference, missing/unparseable amount, missing/unparseable date fallback, currency fallback, dedup, vision-provider failure — all via `FakeDocumentProvider` |
 | `test_finance_receipt_tool.py` | `finance_import_receipt` tool: sandboxed read, mime-type guessing/override, unsupported file type, extraction failure, duplicate reporting |
+| `test_finance_statement_import.py` | Statement → transactions: debit-only import, credit/unclear-direction rows reported not imported, missing/unparseable amount, date fallback, currency fallback, dedup, no-transactions-found and provider-failure as document-level errors, multiple debits all imported |
+| `test_finance_statement_tool.py` | `finance_import_statement` tool: partial-success reporting (unlike the all-or-nothing receipt tool), all-credits statement still a successful call with nothing created, sandboxing, mime-type override |
 | `test_planner.py` | Rule-based intent recognition + failure, LLM planner validation/fallback (via `FakeProvider`) |
 | `test_agent_loop.py` | Happy path, transient-failure-then-correction, permanent failure reporting FAILED (never a fabricated COMPLETE), unplannable request reporting BLOCKED, plan/step persistence |
 | `test_scheduler.py` | Pure due-time computation for all three schedule kinds (including the spec's "every two weeks on Tuesday" example), `Scheduler.tick()` execution/skip/failure recording |
@@ -80,9 +83,9 @@ control.
 
 `db` (in-memory, migrated), `sandbox` (scoped to `tmp_path`), `settings`, `event_bus`, `ctx` (a real
 `ToolContext` with a real session row, so FK constraints hold), `registry`/`strict_registry` (every
-registered tool, including `finance_import_receipt`, with a `PreApprovedGate` or `DenyAllGate`
-respectively — note `finance_import_receipt` still needs a `provider=` override or
-`ANTHROPIC_API_KEY` to actually run; tests that exercise it construct the tool directly with a
+registered tool, including `finance_import_receipt`/`finance_import_statement`, with a
+`PreApprovedGate` or `DenyAllGate` respectively — note those two still need a `provider=` override or
+`ANTHROPIC_API_KEY` to actually run; tests that exercise them construct the tool directly with a
 `FakeDocumentProvider` rather than going through this fixture).
 
 ## Principles for adding tests

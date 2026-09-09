@@ -1,13 +1,14 @@
-"""Receipt structure extraction backed by Claude's vision capability.
+"""Receipt and statement structure extraction backed by Claude's vision capability.
 
 One multimodal call does both the transcription and the structuring —
-the model reads the receipt and returns JSON, which is validated before
+the model reads the document and returns JSON, which is validated before
 anything downstream trusts it (the same "validate the model's JSON
 before using it" discipline `core.planner.llm_planner.LLMPlanner` uses
-for plans). This is extraction, not computation: the model is reading a
-printed total off the page, not computing one — `finance/analytics.py`
-still does every aggregation over the amount that gets persisted. See
-`docs/VISION.md` and `docs/FINANCE.md` for why that distinction matters.
+for plans). This is extraction, not computation: the model is reading
+printed numbers off the page, never computing one — `finance/
+analytics.py` still does every aggregation over whatever amount gets
+persisted. See `docs/VISION.md` and `docs/FINANCE.md` for why that
+distinction matters.
 """
 from __future__ import annotations
 
@@ -15,9 +16,9 @@ import json
 import re
 
 from vision._common import content_block, get_anthropic_client
-from vision.document.base import LineItem, ReceiptExtraction
+from vision.document.base import LineItem, ReceiptExtraction, StatementExtraction, StatementTransaction
 
-_INSTRUCTION = """Read this receipt and respond with ONLY a JSON object (no prose, no markdown \
+_RECEIPT_INSTRUCTION = """Read this receipt and respond with ONLY a JSON object (no prose, no markdown \
 fences) of the form:
 
 {"merchant": "<store/vendor name>" or null,
@@ -30,6 +31,27 @@ fences) of the form:
 Use null for any field you cannot confidently read. Do not guess a value you cannot see — an \
 honest null is far better than an invented number. "total_amount" should be the final total the \
 customer paid, not a subtotal, unless no total is printed."""
+
+_STATEMENT_INSTRUCTION = """Read this bank/card statement (it may span multiple pages) and respond \
+with ONLY a JSON object (no prose, no markdown fences) of the form:
+
+{"account_currency": "<3-letter ISO currency code if determinable>" or null,
+ "transactions": [
+   {"date": "<the date printed for this transaction, as printed>" or null,
+    "description": "<the transaction description/merchant/memo as printed>" or null,
+    "amount": "<the amount for this transaction, digits and decimal point only, unsigned>" or null,
+    "direction": "debit" or "credit" or null},
+   ...
+ ],
+ "notes": "<anything uncertain, illegible, or that seems like a running balance rather than a \
+transaction — call it out here rather than guessing, or empty string>"}
+
+List every individual transaction row you can find, in the order they appear. Use "debit" for money \
+leaving the account (a purchase, a payment, a withdrawal) and "credit" for money entering it (a \
+deposit, a refund, incoming transfer) — read this from the statement's own column headers or \
++/- signs; if a row's direction genuinely can't be determined, use null rather than guessing. Do not \
+include summary/subtotal/running-balance rows as transactions. Use null for any field on a given \
+row you cannot confidently read — an honest null is far better than an invented value."""
 
 _JSON_BLOCK_RE = re.compile(r"\{.*\}", re.DOTALL)
 
@@ -47,27 +69,42 @@ class AnthropicDocumentProvider:
             self._client = get_anthropic_client(api_key=self._api_key)
         return self._client
 
-    def extract_receipt(self, file_bytes: bytes, *, mime_type: str) -> ReceiptExtraction:
+    def _complete_json(self, file_bytes: bytes, mime_type: str, instruction: str,
+                        max_tokens: int | None = None) -> tuple[dict | None, str, str]:
+        """Send one document+instruction call, return (parsed JSON or None, raw text, error note)."""
         client = self._get_client()
         block = content_block(file_bytes, mime_type)
 
         response = client.messages.create(
             model=self.model,
-            max_tokens=self.max_tokens,
-            messages=[{"role": "user", "content": [block, {"type": "text", "text": _INSTRUCTION}]}],
+            max_tokens=max_tokens or self.max_tokens,
+            messages=[{"role": "user", "content": [block, {"type": "text", "text": instruction}]}],
         )
         raw_text = "".join(b.text for b in response.content if b.type == "text")
 
         match = _JSON_BLOCK_RE.search(raw_text)
         if not match:
-            return ReceiptExtraction(raw_text=raw_text, notes="model did not return parseable JSON")
-
+            return None, raw_text, "model did not return parseable JSON"
         try:
-            data = json.loads(match.group(0))
+            return json.loads(match.group(0)), raw_text, ""
         except json.JSONDecodeError:
-            return ReceiptExtraction(raw_text=raw_text, notes="model returned malformed JSON")
+            return None, raw_text, "model returned malformed JSON"
 
+    def extract_receipt(self, file_bytes: bytes, *, mime_type: str) -> ReceiptExtraction:
+        data, raw_text, error = self._complete_json(file_bytes, mime_type, _RECEIPT_INSTRUCTION)
+        if data is None:
+            return ReceiptExtraction(raw_text=raw_text, notes=error)
         return parse_receipt_json(data, raw_text=raw_text)
+
+    def extract_statement(self, file_bytes: bytes, *, mime_type: str) -> StatementExtraction:
+        # A multi-page statement can list many rows — give the model more
+        # room than the receipt/single-transaction case.
+        data, raw_text, error = self._complete_json(
+            file_bytes, mime_type, _STATEMENT_INSTRUCTION, max_tokens=max(self.max_tokens, 8192)
+        )
+        if data is None:
+            return StatementExtraction(raw_text=raw_text, notes=error)
+        return parse_statement_json(data, raw_text=raw_text)
 
 
 def parse_receipt_json(data: dict, *, raw_text: str = "") -> ReceiptExtraction:
@@ -82,8 +119,8 @@ def parse_receipt_json(data: dict, *, raw_text: str = "") -> ReceiptExtraction:
     if isinstance(data.get("notes"), str) and data["notes"]:
         notes.append(data["notes"])
 
-    def _optional_str(key: str) -> str | None:
-        value = data.get(key)
+    def _optional_str(source: dict, key: str) -> str | None:
+        value = source.get(key)
         if value is None:
             return None
         if not isinstance(value, str):
@@ -91,10 +128,10 @@ def parse_receipt_json(data: dict, *, raw_text: str = "") -> ReceiptExtraction:
             return None
         return value or None
 
-    merchant = _optional_str("merchant")
-    date_text = _optional_str("date")
-    currency_code = _optional_str("currency")
-    total_amount_text = _optional_str("total_amount")
+    merchant = _optional_str(data, "merchant")
+    date_text = _optional_str(data, "date")
+    currency_code = _optional_str(data, "currency")
+    total_amount_text = _optional_str(data, "total_amount")
 
     line_items: list[LineItem] = []
     raw_items = data.get("line_items")
@@ -113,5 +150,57 @@ def parse_receipt_json(data: dict, *, raw_text: str = "") -> ReceiptExtraction:
     return ReceiptExtraction(
         merchant=merchant, date_text=date_text, currency_code=currency_code,
         total_amount_text=total_amount_text, line_items=line_items, raw_text=raw_text,
+        notes="; ".join(notes),
+    )
+
+
+_VALID_DIRECTIONS = {"debit", "credit"}
+
+
+def parse_statement_json(data: dict, *, raw_text: str = "") -> StatementExtraction:
+    """Validate and convert the model's JSON into a `StatementExtraction`.
+
+    Same tolerance rules as `parse_receipt_json`: missing/null is fine,
+    wrong-typed is dropped with a note. A malformed individual
+    transaction row is skipped (noted) rather than discarding the whole
+    statement — one bad row shouldn't cost every other real transaction.
+    """
+    notes: list[str] = []
+    if isinstance(data.get("notes"), str) and data["notes"]:
+        notes.append(data["notes"])
+
+    account_currency = data.get("account_currency")
+    if account_currency is not None and not isinstance(account_currency, str):
+        notes.append("'account_currency' was not a string in the model's response; ignored")
+        account_currency = None
+    elif account_currency == "":
+        account_currency = None
+
+    transactions: list[StatementTransaction] = []
+    raw_transactions = data.get("transactions")
+    if isinstance(raw_transactions, list):
+        for i, row in enumerate(raw_transactions):
+            if not isinstance(row, dict):
+                notes.append(f"transaction {i}: not an object; skipped")
+                continue
+
+            def _field(key: str) -> str | None:
+                value = row.get(key)
+                return value if isinstance(value, str) and value else None
+
+            direction = _field("direction")
+            if direction is not None and direction not in _VALID_DIRECTIONS:
+                notes.append(f"transaction {i}: unrecognized direction {direction!r}; ignored")
+                direction = None
+
+            transactions.append(StatementTransaction(
+                date_text=_field("date"), description=_field("description"),
+                amount_text=_field("amount"), direction=direction,
+            ))
+    elif raw_transactions is not None:
+        notes.append("'transactions' was not a list in the model's response; ignored")
+
+    return StatementExtraction(
+        account_currency=account_currency, transactions=transactions, raw_text=raw_text,
         notes="; ".join(notes),
     )

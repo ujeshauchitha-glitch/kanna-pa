@@ -49,12 +49,13 @@ files, runs code, queries its own database — rather than just describing steps
 - Track a personal finance ledger: natural-language transaction entry ("I spent ₹340 on lunch"),
   natural-language queries ("How much did I spend on food this month?"), categories with keyword-based
   auto-categorization, budgets with status/alerts, recurring expenses (with correct month-end
-  rollover), CSV import (deduped), **receipt image/PDF import (vision-backed)**, and CSV/JSON export.
-  All arithmetic is exact integer minor-unit math — see `docs/FINANCE.md`.
-- Read text out of an image or PDF (`vision/ocr`) and extract structured receipt data — merchant,
-  date, amount, line items — from a photographed/scanned receipt (`vision/document`), backed by
-  Claude's vision capability. Requires `ANTHROPIC_API_KEY`; reports `VisionUnavailable` honestly
-  otherwise. See `docs/VISION.md`.
+  rollover), CSV import (deduped), **receipt image/PDF import** and **bank/card statement import
+  (multi-page PDF, debit rows only)** — both vision-backed — and CSV/JSON export. All arithmetic is
+  exact integer minor-unit math — see `docs/FINANCE.md`.
+- Read text out of an image or PDF (`vision/ocr`) and extract structured data — a receipt's merchant/
+  date/amount/line items, or every debit/credit row on a (possibly multi-page) bank/card statement
+  (`vision/document`) — backed by Claude's vision capability. Requires `ANTHROPIC_API_KEY`; reports
+  `VisionUnavailable` honestly otherwise. See `docs/VISION.md`.
 - Generate DOCX, PPTX, and PDF files from structured content (title + sections with headings,
   paragraphs, bullets, tables) via `python-docx`/`python-pptx`/`reportlab` — fully offline,
   deterministic, no LLM or network involved in rendering itself. See `docs/DOCUMENTS.md`.
@@ -78,13 +79,17 @@ files, runs code, queries its own database — rather than just describing steps
   (Octave/C#/full Java toolchains depend on binaries that may not be installed on a given machine —
   the process tool will report that honestly rather than fake output).
 - **Offline/local OCR** — vision is real but Anthropic-only (no `tesseract`/local provider in this
-  environment); generic multi-page document structure extraction (needed for PDF assignment reading)
-  and image editing/generation are also not built yet — see `docs/VISION.md`.
+  environment); *generic* document structure extraction (arbitrary sections/headings, not a fixed
+  receipt or statement-row shape — needed for PDF assignment reading) and image editing/generation are
+  also not built yet — see `docs/VISION.md`.
+- **Income/credit tracking** — statement import only records debit (spend) rows; credit rows (deposits,
+  refunds, salary) are reported, not imported, since `Transaction` has no signed-amount or income/
+  expense representation — see `docs/FINANCE.md`.
 - **Reading or editing existing DOCX/PPTX/PDF files, DOCX/PPTX→PDF conversion** — generation only, and
   only from structured content built by the caller (no "turn this rough idea into a full report"
   content-writing step; that's a job for an LLM *before* handing `documents` a `Document`) — see
   `docs/DOCUMENTS.md`.
-- **Education/assignment workflows, bank statement (PDF) import, multi-device orchestration.**
+- **Education/assignment workflows, multi-device orchestration.**
 - **Trusted/pre-approved automations beyond `PreApprovedGate`'s explicit allowlist** — there is no UI
   yet for a user to grant standing approval; that's a policy-configuration feature for a later phase.
 

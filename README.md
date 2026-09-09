@@ -54,19 +54,25 @@ python main.py computer screenshot shot.png
 python main.py computer click 100 200
 ```
 
+`pip install -e ".[browser]"` + `playwright install chromium` enables browser automation (navigate,
+read page text, screenshot, click, fill) via `browser_*` tools — reachable through the tool
+registry/agent loop today (no `kanna browser ...` CLI subcommand yet). See `docs/BROWSER.md`.
+
 ## Project layout
 
 ```
 core/          agent loop, planner, tool protocol/registry, permissions, memory (SQLite), config,
                logging, events, LLM provider abstraction, task system
-tools/         filesystem, process execution, computer control (FedoraAgent — real, X11-based)
+tools/         filesystem, process execution, computer control (FedoraAgent — real, X11-based),
+               browser automation (PlaywrightBrowserAgent — real, Chromium-based)
 finance/       transactions, categories, budgets, recurring expenses, import/export, analytics
 vision/        OCR + receipt/statement structure extraction, Anthropic-vision-backed
 documents/     DOCX/PPTX/PDF generation from one shared content model, fully offline
 automation/    scheduler (once/interval/weekly schedules)
 interfaces/    CLI
 tests/         pytest suite, one file per subsystem
-docs/          architecture, tools, finance, vision, documents, devices, security, testing, roadmap
+docs/          architecture, tools, finance, vision, documents, devices, browser, security, testing,
+               roadmap
 ```
 
 See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the full picture.

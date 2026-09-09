@@ -27,6 +27,9 @@ tools/
   computer/     ComputerAgent protocol, FedoraAgent (real, X11 via xdotool/scrot/xclip),
                 NullComputerAgent (honest "unavailable"), FakeComputerAgent (tests),
                 get_computer_agent() (backend selection), tools.py (registry-exposed computer_* tools)
+  browser/      BrowserAgent protocol, PlaywrightBrowserAgent (real, Chromium-based),
+                FakeBrowserAgent (tests), get_browser_agent() (process-level singleton session),
+                tools.py (registry-exposed browser_* tools)
 
 finance/        money.py (exact integer-minor-unit arithmetic), models.py, repository.py (SQL),
                 dates.py (shared date-string normalization), nlp.py (deterministic NL parsing),

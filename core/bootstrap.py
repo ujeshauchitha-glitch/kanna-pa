@@ -32,6 +32,7 @@ from core.tools.registry import ToolRegistry
 from documents import tools as document_tools
 from finance import tools as finance_tools
 from tools import filesystem, process
+from tools.browser import tools as browser_tools
 from tools.computer import tools as computer_tools
 
 # Tools registered at REVIEW by default (the safe default — see each
@@ -66,6 +67,7 @@ def build_registry(*, gate: ApprovalGate | None = None,
     finance_tools.register_all(registry)
     document_tools.register_all(registry)
     computer_tools.register_all(registry)
+    browser_tools.register_all(registry)
     return registry
 
 

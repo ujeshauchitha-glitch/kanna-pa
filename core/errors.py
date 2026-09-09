@@ -59,6 +59,20 @@ class DocumentGenerationUnavailable(KannaError):
     """The package needed to render a document format isn't installed (e.g. python-docx)."""
 
 
+class BrowserUnavailable(KannaError):
+    """No usable browser backend is configured (e.g. playwright or its browser binary missing)."""
+
+
+class BrowserActionFailed(KannaError):
+    """A browser action (navigate/click/fill) could not be completed — e.g. no matching element.
+
+    Distinct from `BrowserUnavailable`: the browser itself works fine,
+    but this specific action didn't — the selector didn't match
+    anything, the element wasn't interactable, navigation timed out,
+    etc. Never silently treated as success.
+    """
+
+
 class PlanningError(KannaError):
     """The planner could not produce a valid plan for the request."""
 

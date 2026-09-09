@@ -24,12 +24,13 @@ vision = ["anthropic>=0.40", "pillow"]
 # Document generation (documents/docx_writer, pptx_writer, pdf_writer).
 # Pure offline libraries — no network, no API key.
 documents = ["python-docx>=1.0", "python-pptx>=1.0", "reportlab>=4.0"]
-# Future subsystems — not wired up yet, listed so `pip install
-# kanna[browser]` etc. has somewhere to grow into. A PDF-*reading*
-# extra (pypdf, for statement import — see docs/ROADMAP.md) will join
-# this list once that capability exists; nothing needs it yet.
-browser = ["playwright"]
-dev = ["pytest>=8", "python-docx>=1.0", "python-pptx>=1.0", "reportlab>=4.0"]
+# Browser automation (tools/browser/playwright_backend.py). After
+# installing this extra, a Chromium binary is still needed — run
+# `playwright install chromium` (or `--with-deps chromium` on a bare CI
+# image) once. `PlaywrightBrowserAgent` raises `BrowserUnavailable`
+# rather than crashing if either the package or the binary is missing.
+browser = ["playwright>=1.40"]
+dev = ["pytest>=8", "python-docx>=1.0", "python-pptx>=1.0", "reportlab>=4.0", "playwright>=1.40"]
 
 [project.scripts]
 kanna = "main:main"

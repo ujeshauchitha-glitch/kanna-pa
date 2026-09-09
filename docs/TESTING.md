@@ -33,9 +33,17 @@ skipping — see `docs/DEVICES.md` for what it actually validates and the real b
 `tests/test_computer_tools.py` covers the tool layer (schema, permissions, error translation) via
 `tools.computer.fake.FakeComputerAgent` instead, so that coverage never depends on a display.
 
-As of this writing: **257 tests when a display is available (245 + 12 skipped without one), all
+`tests/test_browser_playwright.py` similarly exercises the real `PlaywrightBrowserAgent` against a
+headless Chromium instance, but skips per-test (a fixture calls `pytest.skip()` if launching actually
+fails) rather than a module-level `skipif` — see `docs/BROWSER.md` for why. CI installs a real
+Chromium build (`python -m playwright install --with-deps chromium`) so this file also runs for real
+on every push; locally, without any browser installed, it skips cleanly.
+`tests/test_browser_tools.py` covers the tool layer via `tools.browser.fake.FakeBrowserAgent` instead,
+so that coverage never depends on a real browser.
+
+As of this writing: **282 tests when a display is available (270 + 12 skipped without one), all
 passing**, covering every Phase 1 subsystem plus Phase 2 vision (receipts and statements), document
-generation, and computer control.
+generation, computer control, statement extraction, and browser automation.
 
 ## Layout
 
@@ -77,6 +85,8 @@ generation, and computer control.
 | `test_fedora_agent.py` | The real `FedoraAgent` against a live X11 session (see above) — screenshot validity, a real click→type→Ctrl-D→read-the-file round trip, clipboard round trip, open/close application, honest failures with no display or a missing binary |
 | `test_computer_selection.py` | `get_computer_agent()` picks `FedoraAgent` vs `NullComputerAgent` correctly |
 | `test_computer_tools.py` | All 11 `computer_*` tools via `FakeComputerAgent`: argument passing, permission levels, `CapabilityUnavailable`/`ValueError` → `ToolResult.fail` translation, default-agent fallback |
+| `test_browser_playwright.py` | The real `PlaywrightBrowserAgent` against a headless Chromium instance (see above) — navigate/get_text/screenshot validity, a real click-mutates-the-DOM round trip, fill + read-back, go_back, current_url, honest failures for a missing selector or a missing `playwright` package |
+| `test_browser_tools.py` | All 6 `browser_*` tools via `FakeBrowserAgent`: argument passing, resulting-observation surfacing, permission levels, `BrowserUnavailable`/`BrowserActionFailed` → `ToolResult.fail` translation, default-agent fallback |
 | `test_cli.py` | Subprocess smoke tests for every top-level command |
 
 ## Fixtures (`tests/conftest.py`)

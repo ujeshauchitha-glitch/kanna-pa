@@ -19,4 +19,8 @@ jobs:
       # a FedoraAgent runtime dependency.
       - run: sudo apt-get update && sudo apt-get install -y xvfb xdotool scrot xclip xterm x11-apps
       - run: pip install -e ".[dev]"
+      # Real Chromium binary + its OS deps, so tests/test_browser_playwright.py
+      # exercises PlaywrightBrowserAgent for real instead of skipping — see
+      # docs/BROWSER.md.
+      - run: python -m playwright install --with-deps chromium
       - run: xvfb-run -a python -m pytest -q

@@ -92,6 +92,28 @@ detected, `NullComputerAgent` (honest `CapabilityUnavailable`, never a fake succ
 | `computer_close_application` | REVIEW | Close an application's windows — may lose unsaved work |
 | `computer_inspect_screen` | LOW | Screen dimensions + active window title |
 
+## Browser automation (`tools/browser/`)
+
+`BrowserAgent` is a Protocol (navigate, read text, screenshot, click, fill, go back) — the
+backend-independent capability surface `PlaywrightBrowserAgent` (real, Chromium-based) implements.
+Every tool resolves its agent via `get_browser_agent()` at call time, a process-level singleton (one
+page stays open across calls, unlike `get_computer_agent()`'s stateless recompute-every-call). Every
+state-changing action returns a `PageObservation` (url/title/text_excerpt) in `ToolResult.data` — never
+just "ok" — so a plan step has real evidence of what happened. See `docs/BROWSER.md` for what was
+actually tested and how, and the Playwright version/Chromium-binary mismatch it found.
+
+| Tool | Permission | What it does |
+|---|---|---|
+| `browser_navigate` | LOW | Navigate to a URL, observe the resulting page |
+| `browser_get_text` | LOW | Read the current page's visible text |
+| `browser_screenshot` | LOW | Capture a screenshot of the current page |
+| `browser_click` | REVIEW | Click a CSS selector — Kanna can't know the consequence |
+| `browser_fill` | REVIEW | Fill a form field — destination/consequence unknown |
+| `browser_go_back` | LOW | Navigate back, observe the result |
+
+Each raises a clean `browser_unavailable` error (never a crash) if `playwright` isn't installed or no
+browser binary can be launched (`pip install kanna[browser]` then `playwright install chromium`).
+
 ## Building a new tool
 
 1. Implement the `Tool` protocol (`core/tools/protocol.py`): `name`, `description`, `input_schema`/

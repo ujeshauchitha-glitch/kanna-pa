@@ -28,10 +28,10 @@ files, runs code, queries its own database — rather than just describing steps
    search, create-new-file, run allowlisted code) auto-run. REVIEW-risk actions (delete, overwrite,
    anything irreversible or external) require an `ApprovalGate` to say yes — the default gate says no
    to everything. See `docs/SECURITY.md`.
-5. **Honest about what it can't do.** A capability with no real implementation (computer control,
-   browser automation) reports `CapabilityUnavailable`/`VisionUnavailable` instead of a fake success —
-   see `vision/ocr/anthropic_ocr.py` for the same discipline applied to a capability (vision) that
-   *is* implemented but can still be unconfigured.
+5. **Honest about what it can't do.** A capability with no real implementation reports
+   `CapabilityUnavailable`/`VisionUnavailable`/`BrowserUnavailable` instead of a fake success — see
+   `vision/ocr/anthropic_ocr.py` for the same discipline applied to a capability (vision) that *is*
+   implemented but can still be unconfigured.
 6. **Every run is inspectable.** The agent loop persists its plan, each step's result, and every tool
    invocation (`execution_log`) to SQLite, so a run can be audited after the fact.
 
@@ -63,6 +63,11 @@ files, runs code, queries its own database — rather than just describing steps
   clipboard, open/close applications (`tools/computer/fedora.py::FedoraAgent`, `xdotool`/`scrot`/
   `xclip`-backed). Falls back to `NullComputerAgent` (honest `CapabilityUnavailable`, never a fake
   success) when no display or those binaries are detected. See `docs/DEVICES.md`.
+- Drive a real Chromium browser: navigate, read page text, screenshot, click, and fill form fields
+  (`tools/browser/playwright_backend.py::PlaywrightBrowserAgent`, Playwright-backed), with every
+  state-changing action returning an observation of the resulting page — never a bare success flag.
+  Reports `BrowserUnavailable` honestly if Playwright or a browser binary isn't installed. See
+  `docs/BROWSER.md`.
 - Track tasks (`kanna task add/list/start/complete/cancel`) and sessions/conversation history.
 - Run scheduled jobs via `kanna scheduler tick` — one-time, interval, and "every N weeks on
   \<weekday\>" schedules, computed with pure, unit-tested date arithmetic.
@@ -75,9 +80,13 @@ files, runs code, queries its own database — rather than just describing steps
   desktop with a live X11 session, not literally only Fedora) and one honest fallback
   (`NullComputerAgent`). No Windows/Phone backend, and no router across multiple registered devices,
   exist yet — see `docs/DEVICES.md`.
-- **Browser automation, handwriting generation, non-Python code runtimes beyond what's listed above**
-  (Octave/C#/full Java toolchains depend on binaries that may not be installed on a given machine —
-  the process tool will report that honestly rather than fake output).
+- **Handwriting generation, non-Python code runtimes beyond what's listed above** (Octave/C#/full Java
+  toolchains depend on binaries that may not be installed on a given machine — the process tool will
+  report that honestly rather than fake output).
+- **Multi-tab/multi-context browsing, session persistence across restarts, file upload/download in the
+  browser, or a `kanna browser ...` CLI subcommand** — the browser tool has one real backend
+  (`PlaywrightBrowserAgent`) reachable only through the tool registry/agent loop today — see
+  `docs/BROWSER.md`.
 - **Offline/local OCR** — vision is real but Anthropic-only (no `tesseract`/local provider in this
   environment); *generic* document structure extraction (arbitrary sections/headings, not a fixed
   receipt or statement-row shape — needed for PDF assignment reading) and image editing/generation are

@@ -7,10 +7,11 @@ plus the concrete `finance/imports/receipt.py` consumer left as an interface-onl
 Phase 1), **document generation** (DOCX/PPTX/PDF from one shared content model, fully offline —
 `python-docx`/`python-pptx`/`reportlab`, no LLM or network in the rendering path itself), a real
 **`ComputerAgent` backend** (`FedoraAgent`, X11-based via `xdotool`/`scrot`/`xclip`, validated against
-a live virtual display — see `docs/DEVICES.md`), and **statement extraction** (multi-page bank/card
+a live virtual display — see `docs/DEVICES.md`), **statement extraction** (multi-page bank/card
 statement reading, extending `vision/document/` beyond single-receipt extraction, plus the concrete
-`finance/imports/statement.py` consumer — the other interface-only placeholder from Phase 1).
-Everything below is not yet built.
+`finance/imports/statement.py` consumer — the other interface-only placeholder from Phase 1), and a
+**browser automation tool** (`PlaywrightBrowserAgent`, Chromium-based, validated against a real
+headless browser — see `docs/BROWSER.md`). Everything below is not yet built.
 
 ## Vision (done, Phase 2) — what's left in this area
 
@@ -60,36 +61,42 @@ Everything below is not yet built.
   documents — this doesn't unlock PDF assignment reading, which needs genuinely generic structure
   extraction instead (see item 1 below).
 
+## Browser automation (done, this pass) — what's left in this area
+
+- One page at a time, one process-level session (`get_browser_agent()`) — no multi-tab/multi-context
+  support, and no cookie/session persistence across process restarts.
+- `browser_get_text`/`text_excerpt` is whole-page `inner_text("body")`, truncated — no
+  selector-scoped text reading, no structured DOM/table extraction.
+- No file-upload or file-download handling.
+- No `kanna browser ...` CLI subcommand yet (unlike `computer`/`document`) — registry/agent-loop path
+  only. See `docs/BROWSER.md`.
+
 ## Next candidates, roughly in order of leverage
 
 1. **Generic document structure extraction.** Extend `vision/document/` with a third shape — arbitrary
    sections/headings/paragraphs/tables, not a fixed receipt or statement-row schema — to unlock PDF
    assignment reading (extract questions, instructions, reference material). Likely a new
    `extract_structure()` method alongside `extract_receipt()`/`extract_statement()`.
-2. **Browser tool.** Navigation, page reading, form interaction, screenshots — critically, every
-   action must be followed by an observation step (never assume a click succeeded), matching the
-   agent loop's existing verify-after-execute pattern. Playwright is already available in this
-   environment (used for testing, not yet wired into a Kanna tool).
-3. **LLM-driven correction.** Right now a failing step retries identically. Once there's a real
+2. **LLM-driven correction.** Right now a failing step retries identically. Once there's a real
    failure corpus to learn from, make `AgentLoop._run_step` ask the planner to revise a step's args
    based on the specific failure reason before retrying — still bounded by `max_corrections`, still
    verified in code afterward.
-4. **Trusted-automation configuration.** `PreApprovedGate` already supports it structurally; needs a
+3. **Trusted-automation configuration.** `PreApprovedGate` already supports it structurally; needs a
    config surface (CLI or file) for the user to grant standing approval to specific tool+argument
    patterns, plus an audit trail of what's been pre-approved. More valuable now that `computer_click`/
-   `computer_type_text` exist and are REVIEW-gated by default.
-5. **Scheduler daemon / OS integration.** `kanna scheduler tick` works today invoked manually or via
+   `computer_type_text`/`browser_click`/`browser_fill` exist and are REVIEW-gated by default.
+4. **Scheduler daemon / OS integration.** `kanna scheduler tick` works today invoked manually or via
    cron/systemd-timer; a longer-running daemon mode (or documented systemd unit) makes it actually
    "set and forget."
-6. **Runtimes beyond Python.** C/C++/Rust/Java toolchains are already reachable through
+5. **Runtimes beyond Python.** C/C++/Rust/Java toolchains are already reachable through
    `process_run`'s allowlist when installed; what's missing is per-language project scaffolding
    (build file generation, dependency resolution) if Kanna should set those up itself rather than
    just compile/run what's already there.
-7. **Education/assignment workflow, NeoColab integration, handwriting rendering.** These depend on
+6. **Education/assignment workflow, NeoColab integration, handwriting rendering.** These depend on
    document generation (done) and #1 above (generic document extraction) being solid first — an
    assignment workflow is essentially "read the assignment PDF via vision, do the work, write it up
    via `documents`."
-8. **Additional device backends** (Windows, Phone) and the capability-based router across them, now
+7. **Additional device backends** (Windows, Phone) and the capability-based router across them, now
    that `FedoraAgent` has validated the `ComputerAgent` interface in practice.
 
 ## Explicitly deferred, no strong opinion yet

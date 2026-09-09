@@ -114,6 +114,20 @@ actually tested and how, and the Playwright version/Chromium-binary mismatch it 
 Each raises a clean `browser_unavailable` error (never a crash) if `playwright` isn't installed or no
 browser binary can be launched (`pip install kanna[browser]` then `playwright install chromium`).
 
+## Vision (`vision/tools.py`)
+
+`vision_extract_structure` is the one vision capability with no finance-shaped consumer (a document's
+structure isn't a spending transaction, unlike a receipt/statement), so it's registered directly
+rather than wrapped inside another subsystem's tool the way `finance_import_receipt`/
+`finance_import_statement` wrap receipt/statement extraction. See `docs/VISION.md`.
+
+| Tool | Permission | What it does |
+|---|---|---|
+| `vision_extract_structure` | LOW | Read an arbitrary document image/PDF (path within the sandbox, may be multi-page) and return its title, sections (headings/paragraphs/bullets), and tables |
+
+Fails cleanly with `vision_unavailable` if `ANTHROPIC_API_KEY`/`anthropic` isn't configured
+(`pip install kanna[vision]`).
+
 ## Building a new tool
 
 1. Implement the `Tool` protocol (`core/tools/protocol.py`): `name`, `description`, `input_schema`/

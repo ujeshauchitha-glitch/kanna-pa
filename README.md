@@ -39,6 +39,10 @@ python main.py finance import-receipt path/to/receipt.jpg
 python main.py finance import-statement path/to/statement.pdf
 ```
 
+The same install also enables reading an arbitrary document's structure (title, sections, headings,
+paragraphs, tables) via the `vision_extract_structure` tool — reachable through the tool
+registry/agent loop today, no CLI subcommand yet.
+
 `pip install -e ".[documents]"` enables generating DOCX/PPTX/PDF files — fully offline, no API key:
 
 ```bash

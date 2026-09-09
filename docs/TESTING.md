@@ -41,9 +41,9 @@ on every push; locally, without any browser installed, it skips cleanly.
 `tests/test_browser_tools.py` covers the tool layer via `tools.browser.fake.FakeBrowserAgent` instead,
 so that coverage never depends on a real browser.
 
-As of this writing: **282 tests when a display is available (270 + 12 skipped without one), all
-passing**, covering every Phase 1 subsystem plus Phase 2 vision (receipts and statements), document
-generation, computer control, statement extraction, and browser automation.
+As of this writing: **300 tests when a display is available (288 + 12 skipped without one), all
+passing**, covering every Phase 1 subsystem plus Phase 2 vision (receipts, statements, and generic
+document structure), document generation, computer control, and browser automation.
 
 ## Layout
 
@@ -68,6 +68,8 @@ generation, computer control, statement extraction, and browser automation.
 | `test_vision_ocr.py` | `FakeOCRProvider` scripted results/responder callback |
 | `test_vision_document.py` | `FakeDocumentProvider` + `parse_receipt_json` (valid, all-null, wrong-typed fields, malformed line items) as a pure function |
 | `test_vision_statement.py` | `FakeDocumentProvider` statement scripting + `parse_statement_json` (valid, all-null, wrong-typed fields, non-object rows skipped without losing valid ones, unrecognized `direction` rejected) as a pure function |
+| `test_vision_structure.py` | `FakeDocumentProvider` structure scripting + `parse_structure_json` (valid, all-null, wrong-typed fields, non-object sections skipped without losing valid ones, missing/invalid `level` defaults to 1, malformed table tolerated) as a pure function |
+| `test_vision_tools.py` | `vision_extract_structure` tool: sandboxed read, mime-type guessing/override, table key omitted (not null) when absent, `VisionUnavailable`/generic provider failure translation |
 | `test_finance_receipt_import.py` | Receipt → transaction: happy path + category inference, missing/unparseable amount, missing/unparseable date fallback, currency fallback, dedup, vision-provider failure — all via `FakeDocumentProvider` |
 | `test_finance_receipt_tool.py` | `finance_import_receipt` tool: sandboxed read, mime-type guessing/override, unsupported file type, extraction failure, duplicate reporting |
 | `test_finance_statement_import.py` | Statement → transactions: debit-only import, credit/unclear-direction rows reported not imported, missing/unparseable amount, date fallback, currency fallback, dedup, no-transactions-found and provider-failure as document-level errors, multiple debits all imported |

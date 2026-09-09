@@ -1,13 +1,18 @@
-"""Structured document extraction: single receipts and multi-transaction statements.
+"""Structured document extraction: receipts, statements, and generic structure.
 
-Both `ReceiptExtraction` and `StatementExtraction` deliberately carry
-*raw, unparsed* strings for date/currency/amount fields rather than
+`ReceiptExtraction` and `StatementExtraction` deliberately carry *raw,
+unparsed* strings for date/currency/amount fields rather than
 `date`/`Money` objects. Parsing "340.50" or "15/03/2024" into an exact
 value is `finance`'s job (`finance.money.Money`, `finance.dates.
 normalize_date`) — this module's job is only to read what's on the
 page. Keeping that boundary means `vision` has no dependency on
 `finance`, only the other way around (see `finance/imports/receipt.py`,
 `finance/imports/statement.py`).
+
+`DocumentStructure` generalizes past the fixed receipt/statement-row
+shapes to arbitrary sections/headings/paragraphs/tables — for reading a
+document (an assignment PDF, an article, a report) that isn't either of
+those two specific things.
 """
 from __future__ import annotations
 
@@ -57,9 +62,52 @@ class StatementExtraction:
     notes: str = ""
 
 
+@dataclass
+class StructureTable:
+    headers: list[str] = field(default_factory=list)
+    rows: list[list[str]] = field(default_factory=list)
+
+
+@dataclass
+class StructureSection:
+    """One heading-and-its-content unit of an arbitrary document.
+
+    Deliberately shaped like `documents.model.Section` (heading/level/
+    paragraphs/bullets/table) so a caller can map a `DocumentStructure`
+    into a `documents.model.Document` and re-render it — but this module
+    doesn't import `documents` itself, the same one-way-dependency
+    discipline `ReceiptExtraction`/`StatementExtraction` already follow
+    with `finance`. The mapping, if a caller wants it, lives on their
+    side.
+    """
+
+    heading: str | None = None
+    level: int = 1
+    paragraphs: list[str] = field(default_factory=list)
+    bullets: list[str] = field(default_factory=list)
+    table: StructureTable | None = None
+
+
+@dataclass
+class DocumentStructure:
+    """Arbitrary document structure — sections/headings/paragraphs/tables,
+    not a fixed receipt or statement-row shape. What a PDF assignment,
+    article, or report reader needs instead of `ReceiptExtraction`'s or
+    `StatementExtraction`'s narrow schema.
+    """
+
+    title: str | None = None
+    sections: list[StructureSection] = field(default_factory=list)
+    raw_text: str = ""
+    notes: str = ""
+
+
 class DocumentProvider(Protocol):
     def extract_receipt(self, file_bytes: bytes, *, mime_type: str) -> ReceiptExtraction:
         ...
 
     def extract_statement(self, file_bytes: bytes, *, mime_type: str) -> StatementExtraction:
+        ...
+
+    def extract_structure(self, file_bytes: bytes, *, mime_type: str) -> DocumentStructure:
         ...

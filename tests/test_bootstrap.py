@@ -14,6 +14,7 @@ def test_build_registry_includes_every_subsystem():
     assert {"document_generate_docx", "document_generate_pptx", "document_generate_pdf"} <= names
     assert {"computer_screenshot", "computer_click", "computer_inspect_screen"} <= names
     assert {"browser_navigate", "browser_click", "browser_fill"} <= names
+    assert "vision_extract_structure" in names
 
 
 def test_default_policy_downgrades_create_new_file_to_allow():

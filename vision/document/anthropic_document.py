@@ -16,7 +16,10 @@ import json
 import re
 
 from vision._common import content_block, get_anthropic_client
-from vision.document.base import LineItem, ReceiptExtraction, StatementExtraction, StatementTransaction
+from vision.document.base import (
+    DocumentStructure, LineItem, ReceiptExtraction, StatementExtraction, StatementTransaction,
+    StructureSection, StructureTable,
+)
 
 _RECEIPT_INSTRUCTION = """Read this receipt and respond with ONLY a JSON object (no prose, no markdown \
 fences) of the form:
@@ -52,6 +55,28 @@ deposit, a refund, incoming transfer) — read this from the statement's own col
 +/- signs; if a row's direction genuinely can't be determined, use null rather than guessing. Do not \
 include summary/subtotal/running-balance rows as transactions. Use null for any field on a given \
 row you cannot confidently read — an honest null is far better than an invented value."""
+
+_STRUCTURE_INSTRUCTION = """Read this document (it may span multiple pages) and respond with ONLY a \
+JSON object (no prose, no markdown fences) of the form:
+
+{"title": "<the document's title, as printed>" or null,
+ "sections": [
+   {"heading": "<this section's heading, as printed>" or null,
+    "level": <1 for a top-level heading, 2 for a subsection, 3 for a sub-subsection, ...>,
+    "paragraphs": ["<paragraph text>", ...],
+    "bullets": ["<bullet/list item text>", ...],
+    "table": {"headers": ["<column>", ...], "rows": [["<cell>", ...], ...]} or null},
+   ...
+ ],
+ "notes": "<anything uncertain, illegible, or structurally ambiguous — call it out here rather than \
+guessing, or empty string>"}
+
+Break the document into sections the way a reader would — by its own headings if it has them, or by \
+natural topic breaks if it doesn't (in which case use "heading": null for that section and level 1). \
+Preserve the document's own wording; do not summarize, paraphrase, or add content that isn't printed. \
+A section that lists items should have those items in "bullets" if unnumbered/unordered, and in \
+"paragraphs" otherwise; use "table" only for content actually laid out as rows and columns. Use null \
+for any field you cannot confidently read — an honest null is far better than an invented value."""
 
 _JSON_BLOCK_RE = re.compile(r"\{.*\}", re.DOTALL)
 
@@ -105,6 +130,16 @@ class AnthropicDocumentProvider:
         if data is None:
             return StatementExtraction(raw_text=raw_text, notes=error)
         return parse_statement_json(data, raw_text=raw_text)
+
+    def extract_structure(self, file_bytes: bytes, *, mime_type: str) -> DocumentStructure:
+        # A multi-page document can have a lot of sections/paragraphs —
+        # same reasoning as the statement case for extra headroom.
+        data, raw_text, error = self._complete_json(
+            file_bytes, mime_type, _STRUCTURE_INSTRUCTION, max_tokens=max(self.max_tokens, 8192)
+        )
+        if data is None:
+            return DocumentStructure(raw_text=raw_text, notes=error)
+        return parse_structure_json(data, raw_text=raw_text)
 
 
 def parse_receipt_json(data: dict, *, raw_text: str = "") -> ReceiptExtraction:
@@ -204,3 +239,92 @@ def parse_statement_json(data: dict, *, raw_text: str = "") -> StatementExtracti
         account_currency=account_currency, transactions=transactions, raw_text=raw_text,
         notes="; ".join(notes),
     )
+
+
+def _parse_structure_table(raw: object, notes: list[str], index: int) -> StructureTable | None:
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        notes.append(f"section {index}: 'table' was not an object in the model's response; ignored")
+        return None
+
+    headers = raw.get("headers")
+    if not isinstance(headers, list) or not all(isinstance(h, str) for h in headers):
+        notes.append(f"section {index}: table 'headers' was not a list of strings; ignored")
+        headers = []
+
+    rows: list[list[str]] = []
+    raw_rows = raw.get("rows")
+    if isinstance(raw_rows, list):
+        for row in raw_rows:
+            if isinstance(row, list) and all(isinstance(cell, str) for cell in row):
+                rows.append(row)
+            else:
+                notes.append(f"section {index}: a table row was not a list of strings; skipped")
+    elif raw_rows is not None:
+        notes.append(f"section {index}: table 'rows' was not a list; ignored")
+
+    return StructureTable(headers=headers, rows=rows)
+
+
+def parse_structure_json(data: dict, *, raw_text: str = "") -> DocumentStructure:
+    """Validate and convert the model's JSON into a `DocumentStructure`.
+
+    Same tolerance rules as `parse_receipt_json`/`parse_statement_json`:
+    missing/null is fine, wrong-typed is dropped with a note. A malformed
+    individual section is skipped (noted) rather than discarding the
+    whole document.
+    """
+    notes: list[str] = []
+    if isinstance(data.get("notes"), str) and data["notes"]:
+        notes.append(data["notes"])
+
+    title = data.get("title")
+    if title is not None and not isinstance(title, str):
+        notes.append("'title' was not a string in the model's response; ignored")
+        title = None
+    elif title == "":
+        title = None
+
+    sections: list[StructureSection] = []
+    raw_sections = data.get("sections")
+    if isinstance(raw_sections, list):
+        for i, raw in enumerate(raw_sections):
+            if not isinstance(raw, dict):
+                notes.append(f"section {i}: not an object; skipped")
+                continue
+
+            heading = raw.get("heading")
+            if heading is not None and not isinstance(heading, str):
+                notes.append(f"section {i}: 'heading' was not a string; ignored")
+                heading = None
+            elif heading == "":
+                heading = None
+
+            level = raw.get("level")
+            level = level if isinstance(level, int) and level > 0 else 1
+
+            paragraphs = raw.get("paragraphs")
+            if isinstance(paragraphs, list) and all(isinstance(p, str) for p in paragraphs):
+                paragraphs = list(paragraphs)
+            else:
+                if paragraphs is not None:
+                    notes.append(f"section {i}: 'paragraphs' was not a list of strings; ignored")
+                paragraphs = []
+
+            bullets = raw.get("bullets")
+            if isinstance(bullets, list) and all(isinstance(b, str) for b in bullets):
+                bullets = list(bullets)
+            else:
+                if bullets is not None:
+                    notes.append(f"section {i}: 'bullets' was not a list of strings; ignored")
+                bullets = []
+
+            sections.append(StructureSection(
+                heading=heading, level=level, paragraphs=paragraphs, bullets=bullets,
+                table=_parse_structure_table(raw.get("table"), notes, i),
+            ))
+    elif raw_sections is not None:
+        notes.append("'sections' was not a list in the model's response; ignored")
+
+    return DocumentStructure(title=title, sections=sections, raw_text=raw_text, notes="; ".join(notes))

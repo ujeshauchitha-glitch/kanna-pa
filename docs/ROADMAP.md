@@ -11,17 +11,20 @@ a live virtual display — see `docs/DEVICES.md`), **statement extraction** (mul
 statement reading, extending `vision/document/` beyond single-receipt extraction, plus the concrete
 `finance/imports/statement.py` consumer — the other interface-only placeholder from Phase 1), and a
 **browser automation tool** (`PlaywrightBrowserAgent`, Chromium-based, validated against a real
-headless browser — see `docs/BROWSER.md`). Everything below is not yet built.
+headless browser — see `docs/BROWSER.md`), and **generic document structure extraction**
+(`extract_structure()`, extending `vision/document/` past the fixed receipt/statement-row shapes to
+arbitrary sections/headings/paragraphs/tables, exposed as `vision_extract_structure` — see
+`docs/VISION.md`). Everything below is not yet built.
 
 ## Vision (done, Phase 2) — what's left in this area
 
 - No offline/local OCR provider (would need `tesseract` or similar; not installed in this
   environment, but `vision/ocr/base.py`'s `OCRProvider` Protocol means one can be added without
   touching callers).
-- Receipt and statement extraction only — no *generic* document structure extraction (arbitrary
-  sections/headings/tables, not a fixed receipt or transaction-row shape) yet. That's what PDF
-  assignment reading (extract questions, instructions, reference material) still needs — see item 1
-  below.
+- Generic structure extraction reads visual structure, not semantics — it can't yet tell "this
+  section is the instructions" from "this section is a question" beyond what the source document's
+  own headings already convey. An assignment-reading workflow that needs that distinction is still
+  future work (see item 5 below).
 - No `vision/image/` (general description/editing) or `vision/screen/` (screenshot understanding,
   tied to `tools/computer/` — now that a real `ComputerAgent` exists, this is more reachable than it
   was) yet.
@@ -58,8 +61,16 @@ headless browser — see `docs/BROWSER.md`). Everything below is not yet built.
   `finance/imports/statement.py`'s docstring and `docs/FINANCE.md` for the reasoning and where that
   boundary would move if Kanna grows income tracking later.
 - The statement-specific JSON shape (fixed transaction-row fields) doesn't generalize to arbitrary
-  documents — this doesn't unlock PDF assignment reading, which needs genuinely generic structure
-  extraction instead (see item 1 below).
+  documents — that gap is now closed by generic structure extraction (see below).
+
+## Generic document structure extraction (done, this pass) — what's left in this area
+
+- Reads visual structure only, not document semantics — see the note in the Vision section above.
+- No `kanna vision ...` CLI subcommand yet (unlike `finance import-receipt`) — registry/agent-loop
+  path only.
+- No mapping helper from `vision.document.base.DocumentStructure` to `documents.model.Document` yet
+  (deliberately kept out of `vision`, which has no dependency on `documents` — see `docs/VISION.md`);
+  a caller wanting to re-render an extracted document builds that mapping itself for now.
 
 ## Browser automation (done, this pass) — what's left in this area
 
@@ -73,30 +84,27 @@ headless browser — see `docs/BROWSER.md`). Everything below is not yet built.
 
 ## Next candidates, roughly in order of leverage
 
-1. **Generic document structure extraction.** Extend `vision/document/` with a third shape — arbitrary
-   sections/headings/paragraphs/tables, not a fixed receipt or statement-row schema — to unlock PDF
-   assignment reading (extract questions, instructions, reference material). Likely a new
-   `extract_structure()` method alongside `extract_receipt()`/`extract_statement()`.
-2. **LLM-driven correction.** Right now a failing step retries identically. Once there's a real
+1. **LLM-driven correction.** Right now a failing step retries identically. Once there's a real
    failure corpus to learn from, make `AgentLoop._run_step` ask the planner to revise a step's args
    based on the specific failure reason before retrying — still bounded by `max_corrections`, still
    verified in code afterward.
-3. **Trusted-automation configuration.** `PreApprovedGate` already supports it structurally; needs a
+2. **Trusted-automation configuration.** `PreApprovedGate` already supports it structurally; needs a
    config surface (CLI or file) for the user to grant standing approval to specific tool+argument
    patterns, plus an audit trail of what's been pre-approved. More valuable now that `computer_click`/
    `computer_type_text`/`browser_click`/`browser_fill` exist and are REVIEW-gated by default.
-4. **Scheduler daemon / OS integration.** `kanna scheduler tick` works today invoked manually or via
+3. **Scheduler daemon / OS integration.** `kanna scheduler tick` works today invoked manually or via
    cron/systemd-timer; a longer-running daemon mode (or documented systemd unit) makes it actually
    "set and forget."
-5. **Runtimes beyond Python.** C/C++/Rust/Java toolchains are already reachable through
+4. **Runtimes beyond Python.** C/C++/Rust/Java toolchains are already reachable through
    `process_run`'s allowlist when installed; what's missing is per-language project scaffolding
    (build file generation, dependency resolution) if Kanna should set those up itself rather than
    just compile/run what's already there.
-6. **Education/assignment workflow, NeoColab integration, handwriting rendering.** These depend on
-   document generation (done) and #1 above (generic document extraction) being solid first — an
-   assignment workflow is essentially "read the assignment PDF via vision, do the work, write it up
-   via `documents`."
-7. **Additional device backends** (Windows, Phone) and the capability-based router across them, now
+5. **Education/assignment workflow, NeoColab integration, handwriting rendering.** Document generation
+   and generic document structure extraction are both done now, so the pieces exist — an assignment
+   workflow is essentially "read the assignment PDF via `vision_extract_structure`, do the work, write
+   it up via `documents`." What's missing is the workflow itself: turning an extracted
+   `DocumentStructure` into actual work items, and a `documents.model.Document` to render the result.
+6. **Additional device backends** (Windows, Phone) and the capability-based router across them, now
    that `FedoraAgent` has validated the `ComputerAgent` interface in practice.
 
 ## Explicitly deferred, no strong opinion yet

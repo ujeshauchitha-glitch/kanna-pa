@@ -41,8 +41,10 @@ finance/        money.py (exact integer-minor-unit arithmetic), models.py, repos
 vision/
   _common.py    Shared Anthropic-client + content-block helpers
   ocr/          OCRProvider protocol, AnthropicOCRProvider (real), FakeOCRProvider (tests)
-  document/     DocumentProvider protocol, AnthropicDocumentProvider (real — receipt and multi-page
-                statement extraction), FakeDocumentProvider (tests)
+  document/     DocumentProvider protocol, AnthropicDocumentProvider (real — receipt, multi-page
+                statement, and generic structure extraction), FakeDocumentProvider (tests)
+  tools.py      vision_extract_structure — the one vision capability registered directly (no
+                finance-shaped consumer wraps it, unlike receipt/statement extraction)
 
 documents/      model.py (shared Document/Section/TableData content model, format-independent),
                 docx_writer.py / pptx_writer.py / pdf_writer.py (one real renderer each, offline —

@@ -53,9 +53,10 @@ files, runs code, queries its own database — rather than just describing steps
   (multi-page PDF, debit rows only)** — both vision-backed — and CSV/JSON export. All arithmetic is
   exact integer minor-unit math — see `docs/FINANCE.md`.
 - Read text out of an image or PDF (`vision/ocr`) and extract structured data — a receipt's merchant/
-  date/amount/line items, or every debit/credit row on a (possibly multi-page) bank/card statement
-  (`vision/document`) — backed by Claude's vision capability. Requires `ANTHROPIC_API_KEY`; reports
-  `VisionUnavailable` honestly otherwise. See `docs/VISION.md`.
+  date/amount/line items, every debit/credit row on a (possibly multi-page) bank/card statement, or an
+  arbitrary document's title/sections/headings/paragraphs/bullets/tables (`vision/document`) — backed
+  by Claude's vision capability. Requires `ANTHROPIC_API_KEY`; reports `VisionUnavailable` honestly
+  otherwise. See `docs/VISION.md`.
 - Generate DOCX, PPTX, and PDF files from structured content (title + sections with headings,
   paragraphs, bullets, tables) via `python-docx`/`python-pptx`/`reportlab` — fully offline,
   deterministic, no LLM or network involved in rendering itself. See `docs/DOCUMENTS.md`.
@@ -88,9 +89,11 @@ files, runs code, queries its own database — rather than just describing steps
   (`PlaywrightBrowserAgent`) reachable only through the tool registry/agent loop today — see
   `docs/BROWSER.md`.
 - **Offline/local OCR** — vision is real but Anthropic-only (no `tesseract`/local provider in this
-  environment); *generic* document structure extraction (arbitrary sections/headings, not a fixed
-  receipt or statement-row shape — needed for PDF assignment reading) and image editing/generation are
-  also not built yet — see `docs/VISION.md`.
+  environment). Generic structure extraction reads visual structure, not document *semantics* — it
+  can't tell "these are the instructions" from "this is a question" beyond what the source document's
+  own headings convey, and there's no assignment-reading *workflow* built on top of it yet (that's
+  future work — see `docs/ROADMAP.md`). Image editing/generation is also not built — see
+  `docs/VISION.md`.
 - **Income/credit tracking** — statement import only records debit (spend) rows; credit rows (deposits,
   refunds, salary) are reported, not imported, since `Transaction` has no signed-amount or income/
   expense representation — see `docs/FINANCE.md`.

@@ -1,6 +1,6 @@
 # Architecture
 
-## Module map (Phase 1 + Phase 2 vision & documents)
+## Module map (Phase 1 + Phase 2)
 
 ```
 core/
@@ -24,7 +24,9 @@ core/
 tools/
   filesystem/   read, write, list, search, mkdir, info, delete — all sandboxed
   process/      Controlled subprocess execution (allowlisted executables, no shell, timeout)
-  computer/     ComputerAgent protocol + NullComputerAgent (honest "unavailable", no fake backend)
+  computer/     ComputerAgent protocol, FedoraAgent (real, X11 via xdotool/scrot/xclip),
+                NullComputerAgent (honest "unavailable"), FakeComputerAgent (tests),
+                get_computer_agent() (backend selection), tools.py (registry-exposed computer_* tools)
 
 finance/        money.py (exact integer-minor-unit arithmetic), models.py, repository.py (SQL),
                 dates.py (shared date-string normalization), nlp.py (deterministic NL parsing),
@@ -49,8 +51,8 @@ automation/
 
 interfaces/
   cli/          argparse-based CLI; commands/ holds the larger per-area subcommand modules
-                (finance, task, scheduler, document); app.py holds the smaller ones (init, ask,
-                tools, db)
+                (finance, task, scheduler, document, computer); app.py holds the smaller ones
+                (init, ask, tools, db)
 
 main.py         `python main.py <command> ...`
 ```

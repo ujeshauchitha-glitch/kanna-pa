@@ -43,12 +43,21 @@ python main.py finance import-receipt path/to/receipt.jpg
 python main.py document generate content.json --format pdf   # or docx, pptx
 ```
 
+On a Linux machine with a live X11 session and `xdotool`/`scrot`/`xclip` installed
+(`dnf install xdotool scrot xclip` on Fedora), computer control works out of the box — no extra
+`pip install`:
+
+```bash
+python main.py computer screenshot shot.png
+python main.py computer click 100 200
+```
+
 ## Project layout
 
 ```
 core/          agent loop, planner, tool protocol/registry, permissions, memory (SQLite), config,
                logging, events, LLM provider abstraction, task system
-tools/         filesystem, process execution, computer-control interface
+tools/         filesystem, process execution, computer control (FedoraAgent — real, X11-based)
 finance/       transactions, categories, budgets, recurring expenses, import/export, analytics
 vision/        OCR + receipt structure extraction, Anthropic-vision-backed
 documents/     DOCX/PPTX/PDF generation from one shared content model, fully offline

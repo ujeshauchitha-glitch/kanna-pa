@@ -35,7 +35,7 @@ files, runs code, queries its own database — rather than just describing steps
 6. **Every run is inspectable.** The agent loop persists its plan, each step's result, and every tool
    invocation (`execution_log`) to SQLite, so a run can be audited after the fact.
 
-## What Kanna can do today (Phase 1 + Phase 2 vision & documents)
+## What Kanna can do today (Phase 1 + Phase 2)
 
 - Take a natural-language request via `kanna ask "<request>"`, plan it (rule-based pattern matching,
   or an LLM planner when `ANTHROPIC_API_KEY` is set), execute it through the tool registry, verify
@@ -58,6 +58,10 @@ files, runs code, queries its own database — rather than just describing steps
 - Generate DOCX, PPTX, and PDF files from structured content (title + sections with headings,
   paragraphs, bullets, tables) via `python-docx`/`python-pptx`/`reportlab` — fully offline,
   deterministic, no LLM or network involved in rendering itself. See `docs/DOCUMENTS.md`.
+- Control the desktop on a Linux machine with a live X11 session: screenshot, mouse, keyboard,
+  clipboard, open/close applications (`tools/computer/fedora.py::FedoraAgent`, `xdotool`/`scrot`/
+  `xclip`-backed). Falls back to `NullComputerAgent` (honest `CapabilityUnavailable`, never a fake
+  success) when no display or those binaries are detected. See `docs/DEVICES.md`.
 - Track tasks (`kanna task add/list/start/complete/cancel`) and sessions/conversation history.
 - Run scheduled jobs via `kanna scheduler tick` — one-time, interval, and "every N weeks on
   \<weekday\>" schedules, computed with pure, unit-tested date arithmetic.
@@ -65,9 +69,11 @@ files, runs code, queries its own database — rather than just describing steps
 
 ## What Kanna cannot do yet
 
-- **Computer control** (mouse/keyboard/screenshot/clipboard/open-application): the `ComputerAgent`
-  interface exists (`tools/computer/base.py`); only a `NullComputerAgent` that honestly reports
-  unavailability is implemented. No Fedora/Windows/Phone backend exists yet.
+- **Computer control on Windows or Phone, or device selection/routing across multiple devices** — the
+  `ComputerAgent` interface has one real backend (`FedoraAgent`, X11-based — works on any Linux
+  desktop with a live X11 session, not literally only Fedora) and one honest fallback
+  (`NullComputerAgent`). No Windows/Phone backend, and no router across multiple registered devices,
+  exist yet — see `docs/DEVICES.md`.
 - **Browser automation, handwriting generation, non-Python code runtimes beyond what's listed above**
   (Octave/C#/full Java toolchains depend on binaries that may not be installed on a given machine —
   the process tool will report that honestly rather than fake output).

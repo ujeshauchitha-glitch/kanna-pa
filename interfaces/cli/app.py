@@ -11,6 +11,7 @@ import sys
 
 from core.bootstrap import bootstrap
 from core.permissions.gate import CLIPromptGate
+from interfaces.cli.commands import computer as computer_cmd
 from interfaces.cli.commands import document as document_cmd
 from interfaces.cli.commands import finance as finance_cmd
 from interfaces.cli.commands import scheduler as scheduler_cmd
@@ -42,6 +43,7 @@ def build_parser() -> argparse.ArgumentParser:
     tasks_cmd.register(subparsers)
     scheduler_cmd.register(subparsers)
     document_cmd.register(subparsers)
+    computer_cmd.register(subparsers)
 
     return parser
 

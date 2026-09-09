@@ -71,11 +71,25 @@ backing library (`python-docx`/`python-pptx`/`reportlab`) isn't installed
 ## Computer control (`tools/computer/`)
 
 `ComputerAgent` is a Protocol (screenshot, mouse, keyboard, scroll, clipboard, open/close app, inspect
-screen) — the device-independent capability surface a future `FedoraAgent`/`WindowsAgent`/
-`PhoneAgent` will implement. Phase 1 ships only `NullComputerAgent`, which raises
-`CapabilityUnavailable` from every method. It's deliberately **not** registered as a tool yet — there
-is nothing useful for it to do until a real backend exists, and no fake backend is shipped. See
-`docs/DEVICES.md`.
+screen) — the device-independent capability surface `FedoraAgent` (real, X11-based) and a future
+`WindowsAgent`/`PhoneAgent` implement. Every tool resolves its agent via `get_computer_agent()` at
+call time, which picks `FedoraAgent` when a live X11 session and `xdotool`/`scrot`/`xclip` are
+detected, `NullComputerAgent` (honest `CapabilityUnavailable`, never a fake success) otherwise. See
+`docs/DEVICES.md` for what was actually tested and how.
+
+| Tool | Permission | What it does |
+|---|---|---|
+| `computer_screenshot` | LOW | Capture a screenshot |
+| `computer_move_mouse` | LOW | Move the mouse cursor |
+| `computer_click` | REVIEW | Click — Kanna can't know the consequence |
+| `computer_type_text` | REVIEW | Type at the current keyboard focus |
+| `computer_key_press` | REVIEW | Press a key/combo — could submit a form or trigger a shortcut |
+| `computer_scroll` | LOW | Scroll the view |
+| `computer_get_clipboard` | LOW | Read the clipboard |
+| `computer_set_clipboard` | LOW | Write the clipboard |
+| `computer_open_application` | LOW | Launch an application |
+| `computer_close_application` | REVIEW | Close an application's windows — may lose unsaved work |
+| `computer_inspect_screen` | LOW | Screen dimensions + active window title |
 
 ## Building a new tool
 

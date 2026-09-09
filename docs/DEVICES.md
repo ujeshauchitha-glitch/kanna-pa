@@ -1,9 +1,8 @@
 # Devices
 
-## Status: interface only
+## Status: one real backend — `FedoraAgent` (X11)
 
-Phase 1 defines the device-independent computer-control surface and ships nothing that pretends to
-use it. `tools/computer/base.py` declares:
+`tools/computer/base.py` declares the device-independent surface:
 
 ```python
 class ComputerAgent(Protocol):
@@ -20,34 +19,95 @@ class ComputerAgent(Protocol):
     def inspect_screen(self) -> dict: ...
 ```
 
-`tools/computer/null.py` implements it as `NullComputerAgent`, which raises
-`CapabilityUnavailable` from every method with a clear message. It is intentionally **not** wired
-into the tool registry — there's nothing useful for it to do until a real backend exists, and Kanna
-does not ship a fake one. This matters for the higher-level promise the spec makes: Kanna should
-never claim a click or a screenshot happened when it didn't.
+Two implementations exist:
 
-## Planned shape (Phase 2+)
+- **`tools/computer/fedora.py::FedoraAgent`** — a real backend, built on `xdotool` (mouse/keyboard/
+  window management), `scrot` (screenshots), and `xclip` (clipboard). Named for the device it targets
+  (the user's actual Fedora laptop, per the original spec), but the implementation is X11-generic —
+  it works on any Linux desktop with a live X11 session and those three tools installed
+  (`dnf install xdotool scrot xclip` on Fedora; `apt install xdotool scrot xclip` on Debian/Ubuntu).
+  Every method checks for a live `DISPLAY` and its specific binary before running anything, raising
+  `CapabilityUnavailable` with the concrete reason otherwise.
+- **`tools/computer/null.py::NullComputerAgent`** — the honest fallback when no display/tooling is
+  detected. Every method raises `CapabilityUnavailable`.
 
+`tools/computer/get_computer_agent()` is the one place that picks between them —
+`tools/computer/fedora.py::is_available()` checks for a live `DISPLAY` plus all three binaries, with
+no assumption either way. Every `computer_*` tool resolves its agent through this at call time, so a
+plan built before a display existed (or one built where it didn't) still does the right thing.
+
+## What was actually tested, and how
+
+This build/CI sandbox has no GUI of its own — no `DISPLAY`, no X server, none of `xdotool`/`scrot`/
+`xclip` installed by default. Rather than ship `FedoraAgent` untested, a virtual display was set up to
+validate it for real:
+
+```bash
+apt-get install -y xvfb xdotool scrot xclip fluxbox xterm x11-apps
+Xvfb :99 -screen 0 1280x800x24 &
+DISPLAY=:99 fluxbox &
 ```
-ComputerAgent (Protocol)
-  ├── FedoraAgent    (Linux — likely via a combination of `xdotool`/`ydotool`, X11/Wayland
-  │                    screenshot APIs, and clipboard tools depending on the display server)
-  ├── WindowsAgent    (Windows — likely via `pywinauto`/`pyautogui`-style automation, or the
-  │                    Windows UI Automation API for a more robust element-based approach)
-  └── PhoneAgent      (Android/iOS — scope TBD; likely a companion app exposing a small local API
-                        for "take a photo of X", "open app Y", rather than full remote control)
-```
 
-The same high-level Kanna request should work regardless of which device executes it. Device
-selection is not yet designed in code; the intended shape is a capability-based router — e.g. "run my
-Octave assignment" selects a device that has `octave` on its `PATH` (discoverable the same way
-`tools/process/run_process.py` already checks executable availability), "open this Windows
-application" selects a `WindowsAgent`, "take a picture of this receipt" selects a `PhoneAgent`. This
-router does not exist yet; it's a Phase 2+ addition to `core/planner` or a new `core/devices` module,
-once there is more than one real backend to route between.
+Against that display, every method was exercised directly and the *effect* was independently
+verified, not just "the subprocess call returned 0":
+
+- **`screenshot()`** — returned bytes were checked for a valid PNG header and decoded with Pillow.
+- **`move_mouse()` / `scroll()`** — confirmed not to raise (no independently observable side effect
+  worth asserting beyond that).
+- **`click()` + `type_text()` + `key_press()`** — the strongest test: clicked into a real `xterm`
+  running `cat > file`, typed a string, sent Ctrl-D, and read the string back out of the file the
+  terminal's own shell wrote. This is the one test that actually proves keyboard focus and X11 event
+  delivery work, not just that `xdotool` exited 0.
+- **`get_clipboard()` / `set_clipboard()`** — round-tripped a value through the real X clipboard
+  selection.
+- **`open_application()` / `close_application()`** — launched `xclock`, confirmed its window existed
+  via `xdotool search --class`, closed it, confirmed the window was gone.
+- **`inspect_screen()`** — confirmed reported dimensions matched the `Xvfb` geometry.
+- **The honest-failure paths** — `CapabilityUnavailable` with no `DISPLAY`, and with the required
+  binary missing (via `monkeypatch`).
+
+This found and fixed one real bug (see below), and CI now runs the same setup (`xvfb-run` +
+`apt-get install xvfb xdotool scrot xclip` in `.github/workflows/tests.yml`) so
+`tests/test_fedora_agent.py` runs for real on every push rather than perpetually skipping. Locally,
+without a display, that one file's tests skip cleanly (`pytest.mark.skipif`) — the rest of the suite
+is unaffected either way.
+
+### The bug this found
+
+`xclip -selection clipboard` (write mode — no `-o`) daemonizes: it forks a background process to keep
+serving the clipboard selection after the command that set it exits. That background copy inherits
+whatever file descriptors it was launched with — including, originally, the `stdout`/`stderr` pipes
+Python's `subprocess.run(..., capture_output=True)` creates. `communicate()` then waits forever for
+those pipes to close, which they never do while the daemon holds them open, so `set_clipboard()`
+would hang until timeout on every real call. Fixed by redirecting `stdout`/`stderr` to `DEVNULL` for
+that one call instead of capturing them — nothing needs xclip's output on a write, and `DEVNULL`
+doesn't keep a pipe open for the daemon to inherit. `tests/test_fedora_agent.py::test_clipboard_round_trip`
+is what caught this.
+
+## Permission levels for computer control
+
+Following the same "read/reversible is LOW, unpredictable-or-irreversible is REVIEW" split the rest
+of Kanna uses (`docs/SECURITY.md`):
+
+| Tool | Level | Why |
+|---|---|---|
+| `computer_screenshot`, `computer_inspect_screen`, `computer_get_clipboard`, `computer_move_mouse`, `computer_scroll`, `computer_set_clipboard`, `computer_open_application` | LOW | Read-only, or a side effect that's trivially reversible (moving a cursor, scrolling a view, overwriting the clipboard, launching an app you can just close again) |
+| `computer_click`, `computer_type_text`, `computer_key_press` | REVIEW | Kanna cannot know what a click, keystroke, or key combo will actually do — it could submit a form, send a message, or trigger anything else the "irreversible external action" category exists for |
+| `computer_close_application` | REVIEW | May discard unsaved work |
 
 ## What this means today
 
-Any request that would require computer control, browser automation reliant on a GUI, or a phone
-camera fails fast with `CapabilityUnavailable` surfaced through the normal `ToolResult.fail()` /
-agent-loop `BLOCKED`/`FAILED` path — never a silent no-op reported as success.
+Computer-control tools are registered in the tool registry (`core/bootstrap.py`) and reachable via
+`kanna computer <screenshot|inspect|click|move|type|key|open|close|clipboard>` directly, or through
+the agent loop's normal plan-step path (where the REVIEW-level ones require an `ApprovalGate` to say
+yes, same as everything else). On a machine with no display, every call fails cleanly with
+`CapabilityUnavailable` — never a silent no-op reported as success.
+
+## Planned next (device selection, other backends)
+
+The same high-level Kanna request should eventually work regardless of which device executes it —
+"take a picture of this receipt" selects a phone, "open this Windows application" selects a Windows
+backend, and so on. That router doesn't exist yet; there is exactly one backend
+(`get_computer_agent()` is a fixed choice between `FedoraAgent` and `NullComputerAgent`, not a router
+across multiple *registered* devices). Building `WindowsAgent`/`PhoneAgent` and the capability-based
+router across them is future work — see `docs/ROADMAP.md`.

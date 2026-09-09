@@ -12,5 +12,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+      # xdotool/scrot/xclip + a virtual display let the FedoraAgent tests
+      # (tests/test_fedora_agent.py) run for real instead of skipping —
+      # see docs/DEVICES.md.
+      - run: sudo apt-get update && sudo apt-get install -y xvfb xdotool scrot xclip
       - run: pip install -e ".[dev]"
-      - run: python -m pytest -q
+      - run: xvfb-run -a python -m pytest -q

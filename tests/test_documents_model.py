@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from documents.model import Document, Section, TableData, build_document
+from documents.model import Section, TableData, build_document
 
 
 def test_build_document_minimal():

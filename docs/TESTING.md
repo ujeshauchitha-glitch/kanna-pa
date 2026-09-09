@@ -16,8 +16,26 @@ tests (`test_documents_*.py`) do exercise the real `python-docx`/`python-pptx`/`
 suite degrades to skipping them, rather than failing, if `kanna[documents]` isn't installed; it is
 included in the `dev` extra, so `pip install -e ".[dev]"` runs the full suite.
 
-As of this writing: **200 tests, all passing**, covering every Phase 1 subsystem plus Phase 2 vision
-and document generation.
+`tests/test_fedora_agent.py` exercises the real `FedoraAgent` against a live X11 session — it needs
+`DISPLAY` plus `xdotool`/`scrot`/`xclip`, none of which exist by default in most environments, so the
+whole file is `pytest.mark.skipif`'d when `tools.computer.fedora.is_available()` is `False`. Locally,
+set up a virtual display to run it for real:
+
+```bash
+apt-get install -y xvfb xdotool scrot xclip   # dnf install on Fedora
+Xvfb :99 -screen 0 1280x800x24 &
+DISPLAY=:99 python -m pytest -q tests/test_fedora_agent.py
+```
+
+CI does exactly this (see `.github/workflows/tests.yml`: installs the same four packages, runs the
+whole suite under `xvfb-run`), so this file runs for real on every push rather than perpetually
+skipping — see `docs/DEVICES.md` for what it actually validates and the real bug it caught.
+`tests/test_computer_tools.py` covers the tool layer (schema, permissions, error translation) via
+`tools.computer.fake.FakeComputerAgent` instead, so that coverage never depends on a display.
+
+As of this writing: **233 tests when a display is available (221 + 12 skipped without one), all
+passing**, covering every Phase 1 subsystem plus Phase 2 vision, document generation, and computer
+control.
 
 ## Layout
 
@@ -52,6 +70,10 @@ and document generation.
 | `test_documents_pdf.py` | `render_pdf` end-to-end (valid `%PDF-` header, non-trivial size), incl. a regression test for XML-escaping special characters and for out-of-range heading levels |
 | `test_documents_tools.py` | All three `document_generate_*` tools: creation, sandbox rejection, overwrite protection, directory-path rejection |
 | `test_bootstrap.py` | `build_registry()` includes every subsystem's tools; `default_policy()`'s create-vs-overwrite rule, generalized to cover `fs_write_file` and all three `document_generate_*` tools |
+| `test_computer_null.py` | Every `NullComputerAgent` method raises `CapabilityUnavailable` with a real reason |
+| `test_fedora_agent.py` | The real `FedoraAgent` against a live X11 session (see above) — screenshot validity, a real click→type→Ctrl-D→read-the-file round trip, clipboard round trip, open/close application, honest failures with no display or a missing binary |
+| `test_computer_selection.py` | `get_computer_agent()` picks `FedoraAgent` vs `NullComputerAgent` correctly |
+| `test_computer_tools.py` | All 11 `computer_*` tools via `FakeComputerAgent`: argument passing, permission levels, `CapabilityUnavailable`/`ValueError` → `ToolResult.fail` translation, default-agent fallback |
 | `test_cli.py` | Subprocess smoke tests for every top-level command |
 
 ## Fixtures (`tests/conftest.py`)

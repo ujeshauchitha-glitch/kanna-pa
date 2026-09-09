@@ -11,6 +11,7 @@ def test_build_registry_includes_every_subsystem():
     assert "process_run" in names
     assert {"finance_add_transaction", "finance_query", "finance_import_receipt"} <= names
     assert {"document_generate_docx", "document_generate_pptx", "document_generate_pdf"} <= names
+    assert {"computer_screenshot", "computer_click", "computer_inspect_screen"} <= names
 
 
 def test_default_policy_downgrades_create_new_file_to_allow():

@@ -5,11 +5,13 @@
 `core.permissions.levels.PermissionLevel`:
 
 - **LOW** — read/search/list files, create a new file, run allowlisted code, inspect
-  screenshots/computer state (once implemented), perform calculations, finance entry/queries. Runs
-  without confirmation.
+  screenshots/computer state, move the mouse/scroll/read or write the clipboard/launch an
+  application, perform calculations, finance entry/queries, generate a new document. Runs without
+  confirmation.
 - **REVIEW** — delete files, overwrite an existing file, send messages/emails, upload, submit,
-  purchase, or any other irreversible external action. Requires an `ApprovalGate` to explicitly say
-  yes.
+  purchase, click/type/press a key (Kanna can't know the consequence — see `docs/DEVICES.md`), close
+  an application (may lose unsaved work), or any other irreversible external action. Requires an
+  `ApprovalGate` to explicitly say yes.
 - **RESTRICTED** — reserved; nothing in Phase 1 uses it. No policy rule grants it by default (see
   `PermissionPolicy.decide()` — RESTRICTED falls through to `DENY` unless a rule says otherwise).
 

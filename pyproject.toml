@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kanna"
+version = "0.1.0"
+description = "Kanna — a personal AI work-execution agent"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Proprietary" }
+dependencies = []
+
+[project.optional-dependencies]
+# Real Anthropic-backed LLM provider. Core works without it (rule-based
+# planner + finance NLP are pure stdlib and always available).
+llm = ["anthropic>=0.40"]
+# Future subsystems — not wired up in Phase 1, listed so `pip install
+# kanna[vision]` etc. has somewhere to grow into.
+vision = ["pillow"]
+browser = ["playwright"]
+docs = ["python-docx", "pypdf"]
+dev = ["pytest>=8"]
+
+[project.scripts]
+kanna = "main:main"
+
+[tool.setuptools.packages.find]
+include = ["core*", "tools*", "finance*", "automation*", "interfaces*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

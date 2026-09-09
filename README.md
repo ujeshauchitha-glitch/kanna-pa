@@ -37,6 +37,12 @@ fully offline without it — the rule-based planner and the finance NLP parser n
 python main.py finance import-receipt path/to/receipt.jpg
 ```
 
+`pip install -e ".[documents]"` enables generating DOCX/PPTX/PDF files — fully offline, no API key:
+
+```bash
+python main.py document generate content.json --format pdf   # or docx, pptx
+```
+
 ## Project layout
 
 ```
@@ -45,10 +51,11 @@ core/          agent loop, planner, tool protocol/registry, permissions, memory 
 tools/         filesystem, process execution, computer-control interface
 finance/       transactions, categories, budgets, recurring expenses, import/export, analytics
 vision/        OCR + receipt structure extraction, Anthropic-vision-backed
+documents/     DOCX/PPTX/PDF generation from one shared content model, fully offline
 automation/    scheduler (once/interval/weekly schedules)
 interfaces/    CLI
 tests/         pytest suite, one file per subsystem
-docs/          architecture, tools, finance, vision, devices, security, testing, roadmap
+docs/          architecture, tools, finance, vision, documents, devices, security, testing, roadmap
 ```
 
 See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the full picture.

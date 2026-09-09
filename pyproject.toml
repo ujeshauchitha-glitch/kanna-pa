@@ -21,17 +21,21 @@ llm = ["anthropic>=0.40"]
 # 'pillow' isn't imported by any Phase 2 code yet but is kept for planned
 # image-editing/validation work.
 vision = ["anthropic>=0.40", "pillow"]
+# Document generation (documents/docx_writer, pptx_writer, pdf_writer).
+# Pure offline libraries — no network, no API key.
+documents = ["python-docx>=1.0", "python-pptx>=1.0", "reportlab>=4.0"]
 # Future subsystems — not wired up yet, listed so `pip install
-# kanna[browser]` etc. has somewhere to grow into.
+# kanna[browser]` etc. has somewhere to grow into. A PDF-*reading*
+# extra (pypdf, for statement import — see docs/ROADMAP.md) will join
+# this list once that capability exists; nothing needs it yet.
 browser = ["playwright"]
-docs = ["python-docx", "pypdf"]
-dev = ["pytest>=8"]
+dev = ["pytest>=8", "python-docx>=1.0", "python-pptx>=1.0", "reportlab>=4.0"]
 
 [project.scripts]
 kanna = "main:main"
 
 [tool.setuptools.packages.find]
-include = ["core*", "tools*", "finance*", "automation*", "interfaces*", "vision*"]
+include = ["core*", "tools*", "finance*", "automation*", "interfaces*", "vision*", "documents*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -29,23 +29,29 @@ from core.planner.llm_planner import LLMPlanner
 from core.planner.rule_based import RuleBasedPlanner
 from core.tools.context import ToolContext
 from core.tools.registry import ToolRegistry
+from documents import tools as document_tools
 from finance import tools as finance_tools
 from tools import filesystem, process
 
+# Tools registered at REVIEW by default (the safe default — see each
+# tool's docstring) whose risk actually hinges on one thing: whether
+# they'd overwrite an existing file. Creating a brand-new file is
+# low-risk; only an explicit overwrite=True stays REVIEW-gated.
+_CREATE_OR_OVERWRITE_TOOLS = frozenset({
+    "fs_write_file", "document_generate_docx", "document_generate_pptx", "document_generate_pdf",
+})
+
 
 def default_policy() -> PermissionPolicy:
-    """The Phase 1 permission rule set.
+    """The default permission rule set.
 
-    `fs_write_file` is registered at REVIEW (the safe default — see its
-    docstring), but creating a brand-new file (`overwrite=False`, the
-    default) is downgraded to auto-allow here; only an explicit
-    `overwrite=True` stays REVIEW-gated. Every other REVIEW-level tool
-    (delete, etc.) keeps the registry's default behavior.
+    Every other REVIEW-level tool (delete, etc.) keeps the registry's
+    default behavior — approval required, denied unless a gate says yes.
     """
     policy = PermissionPolicy()
     policy.add_rule(Rule(
-        name="fs_write_file: creating a new file is low-risk",
-        predicate=lambda name, args: name == "fs_write_file" and not args.get("overwrite", False),
+        name="creating a new file is low-risk; overwriting an existing one stays gated",
+        predicate=lambda name, args: name in _CREATE_OR_OVERWRITE_TOOLS and not args.get("overwrite", False),
         decision=Decision.ALLOW,
     ))
     return policy
@@ -57,6 +63,7 @@ def build_registry(*, gate: ApprovalGate | None = None,
     filesystem.register_all(registry)
     process.register_all(registry)
     finance_tools.register_all(registry)
+    document_tools.register_all(registry)
     return registry
 
 

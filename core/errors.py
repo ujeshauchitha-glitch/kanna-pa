@@ -55,6 +55,10 @@ class VisionUnavailable(KannaError):
     """No usable vision provider is configured (e.g. missing API key or package)."""
 
 
+class DocumentGenerationUnavailable(KannaError):
+    """The package needed to render a document format isn't installed (e.g. python-docx)."""
+
+
 class PlanningError(KannaError):
     """The planner could not produce a valid plan for the request."""
 

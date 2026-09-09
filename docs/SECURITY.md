@@ -18,10 +18,11 @@ rule engine: a list of `(predicate, decision)` rules checked in order, falling b
 LOW→ALLOW / REVIEW→REQUIRE_APPROVAL / RESTRICTED→DENY if nothing matches. This is intentionally data,
 not a branch of if/else code, so adding a "trusted automation" later — e.g. "always allow
 `fs_write_file` with `overwrite=true` under `~/reports/`" — is a matter of appending a `Rule`, not
-touching the policy engine. `core/bootstrap.py::default_policy()` currently has exactly one rule:
-`fs_write_file` with `overwrite=False` (creating a new file) is downgraded from its registered REVIEW
-default to auto-ALLOW, because creating a new file is low-risk; overwriting an existing one is not
-and stays gated.
+touching the policy engine. `core/bootstrap.py::default_policy()` currently has exactly one rule,
+covering every "creates a file" tool (`fs_write_file`, `document_generate_docx`,
+`document_generate_pptx`, `document_generate_pdf`): called with `overwrite=False` (the default,
+i.e. creating a new file), each is downgraded from its registered REVIEW default to auto-ALLOW,
+because creating a new file is low-risk; an explicit `overwrite=True` on any of them stays gated.
 
 ## Approval gates
 

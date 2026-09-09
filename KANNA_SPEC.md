@@ -35,7 +35,7 @@ files, runs code, queries its own database — rather than just describing steps
 6. **Every run is inspectable.** The agent loop persists its plan, each step's result, and every tool
    invocation (`execution_log`) to SQLite, so a run can be audited after the fact.
 
-## What Kanna can do today (Phase 1 + Phase 2 vision)
+## What Kanna can do today (Phase 1 + Phase 2 vision & documents)
 
 - Take a natural-language request via `kanna ask "<request>"`, plan it (rule-based pattern matching,
   or an LLM planner when `ANTHROPIC_API_KEY` is set), execute it through the tool registry, verify
@@ -55,6 +55,9 @@ files, runs code, queries its own database — rather than just describing steps
   date, amount, line items — from a photographed/scanned receipt (`vision/document`), backed by
   Claude's vision capability. Requires `ANTHROPIC_API_KEY`; reports `VisionUnavailable` honestly
   otherwise. See `docs/VISION.md`.
+- Generate DOCX, PPTX, and PDF files from structured content (title + sections with headings,
+  paragraphs, bullets, tables) via `python-docx`/`python-pptx`/`reportlab` — fully offline,
+  deterministic, no LLM or network involved in rendering itself. See `docs/DOCUMENTS.md`.
 - Track tasks (`kanna task add/list/start/complete/cancel`) and sessions/conversation history.
 - Run scheduled jobs via `kanna scheduler tick` — one-time, interval, and "every N weeks on
   \<weekday\>" schedules, computed with pure, unit-tested date arithmetic.
@@ -65,12 +68,16 @@ files, runs code, queries its own database — rather than just describing steps
 - **Computer control** (mouse/keyboard/screenshot/clipboard/open-application): the `ComputerAgent`
   interface exists (`tools/computer/base.py`); only a `NullComputerAgent` that honestly reports
   unavailability is implemented. No Fedora/Windows/Phone backend exists yet.
-- **Browser automation, handwriting generation, DOCX/PDF/PPTX generation, non-Python code runtimes
-  beyond what's listed above** (Octave/C#/full Java toolchains depend on binaries that may not be
-  installed on a given machine — the process tool will report that honestly rather than fake output).
+- **Browser automation, handwriting generation, non-Python code runtimes beyond what's listed above**
+  (Octave/C#/full Java toolchains depend on binaries that may not be installed on a given machine —
+  the process tool will report that honestly rather than fake output).
 - **Offline/local OCR** — vision is real but Anthropic-only (no `tesseract`/local provider in this
   environment); generic multi-page document structure extraction (needed for PDF assignment reading)
   and image editing/generation are also not built yet — see `docs/VISION.md`.
+- **Reading or editing existing DOCX/PPTX/PDF files, DOCX/PPTX→PDF conversion** — generation only, and
+  only from structured content built by the caller (no "turn this rough idea into a full report"
+  content-writing step; that's a job for an LLM *before* handing `documents` a `Document`) — see
+  `docs/DOCUMENTS.md`.
 - **Education/assignment workflows, bank statement (PDF) import, multi-device orchestration.**
 - **Trusted/pre-approved automations beyond `PreApprovedGate`'s explicit allowlist** — there is no UI
   yet for a user to grant standing approval; that's a policy-configuration feature for a later phase.

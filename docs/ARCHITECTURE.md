@@ -1,6 +1,6 @@
 # Architecture
 
-## Module map (Phase 1 + Phase 2 vision)
+## Module map (Phase 1 + Phase 2 vision & documents)
 
 ```
 core/
@@ -38,13 +38,19 @@ vision/
   document/     DocumentProvider protocol, AnthropicDocumentProvider (real, receipt extraction),
                 FakeDocumentProvider (tests)
 
+documents/      model.py (shared Document/Section/TableData content model, format-independent),
+                docx_writer.py / pptx_writer.py / pdf_writer.py (one real renderer each, offline —
+                python-docx / python-pptx / reportlab), tools.py (registry-exposed
+                document_generate_* tools, sandboxed + overwrite-gated like fs_write_file)
+
 automation/
   scheduler/    Schedule (once/interval/weekly), pure due-time computation, SchedulerStore
                 (SQLite), Scheduler.tick()
 
 interfaces/
   cli/          argparse-based CLI; commands/ holds the larger per-area subcommand modules
-                (finance, task, scheduler); app.py holds the smaller ones (init, ask, tools, db)
+                (finance, task, scheduler, document); app.py holds the smaller ones (init, ask,
+                tools, db)
 
 main.py         `python main.py <command> ...`
 ```
@@ -52,7 +58,8 @@ main.py         `python main.py <command> ...`
 Directories present in the target structure but not yet populated (`runtimes/`, `work/`,
 `education/`, `devices/`, `interfaces/voice`, `interfaces/desktop`, `interfaces/mobile`) are
 deliberately not created until there's real code to put in them — see `docs/ROADMAP.md`.
-`vision/` is populated as of Phase 2, scoped to OCR + receipt extraction — see `docs/VISION.md`.
+`vision/` and `documents/` are populated as of Phase 2 — see `docs/VISION.md` and
+`docs/DOCUMENTS.md`.
 
 ## The agent loop
 

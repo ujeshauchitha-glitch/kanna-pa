@@ -7,13 +7,17 @@ pip install -e ".[dev]"   # or just: pip install pytest
 python -m pytest -q
 ```
 
-No network access, no API key, and no external binaries beyond `python3` itself are required — every
-test that would otherwise need an LLM uses `core.llm.fake.FakeProvider` or
-`core.llm.null.NullProvider`, every test that would otherwise need vision uses
-`vision.ocr.fake.FakeOCRProvider`/`vision.document.fake.FakeDocumentProvider`, and the process-tool
-tests only invoke `python3` (always present in this environment).
+No network access and no API key are required — every test that would otherwise need an LLM uses
+`core.llm.fake.FakeProvider`/`core.llm.null.NullProvider`, every test that would otherwise need
+vision uses `vision.ocr.fake.FakeOCRProvider`/`vision.document.fake.FakeDocumentProvider`, and the
+process-tool tests only invoke `python3` (always present in this environment). Document-generation
+tests (`test_documents_*.py`) do exercise the real `python-docx`/`python-pptx`/`reportlab` libraries
+(they're pure offline/deterministic — no network either way) but use `pytest.importorskip` so the
+suite degrades to skipping them, rather than failing, if `kanna[documents]` isn't installed; it is
+included in the `dev` extra, so `pip install -e ".[dev]"` runs the full suite.
 
-As of this writing: **171 tests, all passing**, covering every Phase 1 subsystem plus Phase 2 vision.
+As of this writing: **200 tests, all passing**, covering every Phase 1 subsystem plus Phase 2 vision
+and document generation.
 
 ## Layout
 
@@ -42,6 +46,12 @@ As of this writing: **171 tests, all passing**, covering every Phase 1 subsystem
 | `test_planner.py` | Rule-based intent recognition + failure, LLM planner validation/fallback (via `FakeProvider`) |
 | `test_agent_loop.py` | Happy path, transient-failure-then-correction, permanent failure reporting FAILED (never a fabricated COMPLETE), unplannable request reporting BLOCKED, plan/step persistence |
 | `test_scheduler.py` | Pure due-time computation for all three schedule kinds (including the spec's "every two weeks on Tuesday" example), `Scheduler.tick()` execution/skip/failure recording |
+| `test_documents_model.py` | `build_document()` — the pure "args dict → `Document`" conversion (full content, empty-string-to-`None`, default heading level) |
+| `test_documents_docx.py` | `render_docx` end-to-end, read back with `python-docx` to assert real structure (styles, table cells), not just file existence |
+| `test_documents_pptx.py` | `render_pptx` end-to-end, incl. the table-only-section-must-keep-its-heading regression (see `docs/DOCUMENTS.md`) |
+| `test_documents_pdf.py` | `render_pdf` end-to-end (valid `%PDF-` header, non-trivial size), incl. a regression test for XML-escaping special characters and for out-of-range heading levels |
+| `test_documents_tools.py` | All three `document_generate_*` tools: creation, sandbox rejection, overwrite protection, directory-path rejection |
+| `test_bootstrap.py` | `build_registry()` includes every subsystem's tools; `default_policy()`'s create-vs-overwrite rule, generalized to cover `fs_write_file` and all three `document_generate_*` tools |
 | `test_cli.py` | Subprocess smoke tests for every top-level command |
 
 ## Fixtures (`tests/conftest.py`)

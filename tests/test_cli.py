@@ -29,6 +29,7 @@ def test_tools_list(tmp_path):
     assert result.returncode == 0
     assert "fs_read_file" in result.stdout
     assert "finance_add_transaction" in result.stdout
+    assert "document_generate_docx" in result.stdout
 
 
 def test_db_migrate(tmp_path):
@@ -52,6 +53,30 @@ def test_ask_list_directory(tmp_path):
 
     result = _run(["ask", "list the files in ./docs"], tmp_path)
     assert result.returncode == 0
+
+
+def test_document_generate(tmp_path):
+    import json
+
+    content = {
+        "title": "Report", "path": "report.pdf",
+        "sections": [{"heading": "Intro", "paragraphs": ["hello"]}],
+    }
+    content_path = tmp_path / "content.json"
+    content_path.write_text(json.dumps(content))
+
+    result = _run(["document", "generate", str(content_path), "--format", "pdf"], tmp_path)
+    assert result.returncode == 0
+    assert (tmp_path / "report.pdf").exists()
+
+    # Second run without --overwrite fails cleanly.
+    second = _run(["document", "generate", str(content_path), "--format", "pdf"], tmp_path)
+    assert second.returncode == 1
+    assert "already exists" in second.stderr
+
+    third = _run(["document", "generate", str(content_path), "--format", "pdf", "--overwrite"],
+                  tmp_path)
+    assert third.returncode == 0
 
 
 def test_task_lifecycle(tmp_path):

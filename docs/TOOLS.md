@@ -17,10 +17,11 @@ level, description) of whatever's registered in your build.
 | `fs_delete` | REVIEW | Delete a file, or a directory tree with `recursive=true` |
 
 \* `fs_write_file`'s registered permission is REVIEW (the safe default), but the default policy
-(`core/bootstrap.py::default_policy`) downgrades it to auto-allow when `overwrite` is `False` —
-creating a brand-new file is LOW-risk; only overwriting an existing one stays gated. All filesystem
-tools resolve paths through `core.permissions.sandbox.Sandbox`, which rejects `..` traversal and
-symlink escapes before touching disk.
+(`core/bootstrap.py::default_policy`) downgrades it — along with the `document_generate_*` tools
+below, which follow the identical pattern — to auto-allow when `overwrite` is `False`: creating a
+brand-new file is LOW-risk; only overwriting an existing one stays gated. All filesystem tools
+resolve paths through `core.permissions.sandbox.Sandbox`, which rejects `..` traversal and symlink
+escapes before touching disk.
 
 ## Process execution (`tools/process/`)
 
@@ -50,6 +51,22 @@ these all rely on.
 `finance_import_receipt` additionally needs `ANTHROPIC_API_KEY` (it uses
 `vision.document.anthropic_document.AnthropicDocumentProvider` by default) — without one it fails
 cleanly with a `VisionUnavailable`-derived error rather than crashing or fabricating a transaction.
+
+## Documents (`documents/tools.py`)
+
+Sandboxed and overwrite-gated exactly like `fs_write_file` (see above) — creating a new file is
+auto-allowed, `overwrite=true` requires approval. Fully offline; no network, no LLM, no API key at
+render time. See `docs/DOCUMENTS.md`.
+
+| Tool | What it does |
+|---|---|
+| `document_generate_docx` | Generate a Word document from structured title/sections content |
+| `document_generate_pptx` | Generate a PowerPoint deck — one slide per section |
+| `document_generate_pdf` | Generate a PDF from the same structured content |
+
+Each raises a clean `document_generation_unavailable` error (never a crash or an empty file) if its
+backing library (`python-docx`/`python-pptx`/`reportlab`) isn't installed
+(`pip install kanna[documents]`).
 
 ## Computer control (`tools/computer/`)
 

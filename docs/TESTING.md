@@ -41,9 +41,10 @@ on every push; locally, without any browser installed, it skips cleanly.
 `tests/test_browser_tools.py` covers the tool layer via `tools.browser.fake.FakeBrowserAgent` instead,
 so that coverage never depends on a real browser.
 
-As of this writing: **300 tests when a display is available (288 + 12 skipped without one), all
+As of this writing: **311 tests when a display is available (299 + 12 skipped without one), all
 passing**, covering every Phase 1 subsystem plus Phase 2 vision (receipts, statements, and generic
-document structure), document generation, computer control, and browser automation.
+document structure), document generation, computer control, browser automation, and LLM-driven
+step correction.
 
 ## Layout
 
@@ -74,8 +75,8 @@ document structure), document generation, computer control, and browser automati
 | `test_finance_receipt_tool.py` | `finance_import_receipt` tool: sandboxed read, mime-type guessing/override, unsupported file type, extraction failure, duplicate reporting |
 | `test_finance_statement_import.py` | Statement → transactions: debit-only import, credit/unclear-direction rows reported not imported, missing/unparseable amount, date fallback, currency fallback, dedup, no-transactions-found and provider-failure as document-level errors, multiple debits all imported |
 | `test_finance_statement_tool.py` | `finance_import_statement` tool: partial-success reporting (unlike the all-or-nothing receipt tool), all-credits statement still a successful call with nothing created, sandboxing, mime-type override |
-| `test_planner.py` | Rule-based intent recognition + failure, LLM planner validation/fallback (via `FakeProvider`) |
-| `test_agent_loop.py` | Happy path, transient-failure-then-correction, permanent failure reporting FAILED (never a fabricated COMPLETE), unplannable request reporting BLOCKED, plan/step persistence |
+| `test_planner.py` | Rule-based intent recognition + failure, LLM planner validation/fallback (via `FakeProvider`), `LLMPlanner.revise_step` (corrected args, prompt content, unknown tool/no-JSON/no-args-key/invalid-revised-args/LLM-unavailable all raising `PlanningError`, `RuleBasedPlanner` correctly lacking the capability) |
+| `test_agent_loop.py` | Happy path, transient-failure-then-correction, permanent failure reporting FAILED (never a fabricated COMPLETE), unplannable request reporting BLOCKED, plan/step persistence, LLM-driven correction actually using the planner's revised args (not a blind retry), falling back to identical retry when revision fails or the planner has no `revise_step` capability |
 | `test_scheduler.py` | Pure due-time computation for all three schedule kinds (including the spec's "every two weeks on Tuesday" example), `Scheduler.tick()` execution/skip/failure recording |
 | `test_documents_model.py` | `build_document()` — the pure "args dict → `Document`" conversion (full content, empty-string-to-`None`, default heading level) |
 | `test_documents_docx.py` | `render_docx` end-to-end, read back with `python-docx` to assert real structure (styles, table cells), not just file existence |

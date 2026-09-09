@@ -11,10 +11,12 @@ a live virtual display — see `docs/DEVICES.md`), **statement extraction** (mul
 statement reading, extending `vision/document/` beyond single-receipt extraction, plus the concrete
 `finance/imports/statement.py` consumer — the other interface-only placeholder from Phase 1), and a
 **browser automation tool** (`PlaywrightBrowserAgent`, Chromium-based, validated against a real
-headless browser — see `docs/BROWSER.md`), and **generic document structure extraction**
+headless browser — see `docs/BROWSER.md`), **generic document structure extraction**
 (`extract_structure()`, extending `vision/document/` past the fixed receipt/statement-row shapes to
 arbitrary sections/headings/paragraphs/tables, exposed as `vision_extract_structure` — see
-`docs/VISION.md`). Everything below is not yet built.
+`docs/VISION.md`), and **LLM-driven correction** (`AgentLoop._run_step` now asks the planner to
+revise a failing step's args based on the specific failure reason before retrying, when the planner
+supports it — see `docs/ARCHITECTURE.md`'s agent-loop section). Everything below is not yet built.
 
 ## Vision (done, Phase 2) — what's left in this area
 
@@ -82,29 +84,36 @@ arbitrary sections/headings/paragraphs/tables, exposed as `vision_extract_struct
 - No `kanna browser ...` CLI subcommand yet (unlike `computer`/`document`) — registry/agent-loop path
   only. See `docs/BROWSER.md`.
 
+## LLM-driven correction (done, this pass) — what's left in this area
+
+- `revise_step()` fixes one step's *args* based on the failure reason; it can't swap to a different
+  tool mid-correction, retry a whole sub-sequence of steps, or use anything beyond the single most
+  recent failure (no memory of earlier attempts within the same step, no cross-step learning within a
+  run).
+- No real-world failure corpus yet to know how well this actually helps versus a blind retry — it's
+  built and tested against scripted `FakeProvider` responses, not evaluated against live failures.
+- `RuleBasedPlanner` has no LLM to ask, so it still retries identically — this only helps runs using
+  `LLMPlanner`.
+
 ## Next candidates, roughly in order of leverage
 
-1. **LLM-driven correction.** Right now a failing step retries identically. Once there's a real
-   failure corpus to learn from, make `AgentLoop._run_step` ask the planner to revise a step's args
-   based on the specific failure reason before retrying — still bounded by `max_corrections`, still
-   verified in code afterward.
-2. **Trusted-automation configuration.** `PreApprovedGate` already supports it structurally; needs a
+1. **Trusted-automation configuration.** `PreApprovedGate` already supports it structurally; needs a
    config surface (CLI or file) for the user to grant standing approval to specific tool+argument
    patterns, plus an audit trail of what's been pre-approved. More valuable now that `computer_click`/
    `computer_type_text`/`browser_click`/`browser_fill` exist and are REVIEW-gated by default.
-3. **Scheduler daemon / OS integration.** `kanna scheduler tick` works today invoked manually or via
+2. **Scheduler daemon / OS integration.** `kanna scheduler tick` works today invoked manually or via
    cron/systemd-timer; a longer-running daemon mode (or documented systemd unit) makes it actually
    "set and forget."
-4. **Runtimes beyond Python.** C/C++/Rust/Java toolchains are already reachable through
+3. **Runtimes beyond Python.** C/C++/Rust/Java toolchains are already reachable through
    `process_run`'s allowlist when installed; what's missing is per-language project scaffolding
    (build file generation, dependency resolution) if Kanna should set those up itself rather than
    just compile/run what's already there.
-5. **Education/assignment workflow, NeoColab integration, handwriting rendering.** Document generation
+4. **Education/assignment workflow, NeoColab integration, handwriting rendering.** Document generation
    and generic document structure extraction are both done now, so the pieces exist — an assignment
    workflow is essentially "read the assignment PDF via `vision_extract_structure`, do the work, write
    it up via `documents`." What's missing is the workflow itself: turning an extracted
    `DocumentStructure` into actual work items, and a `documents.model.Document` to render the result.
-6. **Additional device backends** (Windows, Phone) and the capability-based router across them, now
+5. **Additional device backends** (Windows, Phone) and the capability-based router across them, now
    that `FedoraAgent` has validated the `ComputerAgent` interface in practice.
 
 ## Explicitly deferred, no strong opinion yet

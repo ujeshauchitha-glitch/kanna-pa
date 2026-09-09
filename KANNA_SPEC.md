@@ -39,8 +39,10 @@ files, runs code, queries its own database — rather than just describing steps
 
 - Take a natural-language request via `kanna ask "<request>"`, plan it (rule-based pattern matching,
   or an LLM planner when `ANTHROPIC_API_KEY` is set), execute it through the tool registry, verify
-  each step's postconditions in code, retry a failing step up to a bounded correction budget, and
-  report COMPLETE / FAILED (with the real blocker) / BLOCKED (when it can't even form a plan).
+  each step's postconditions in code, retry a failing step up to a bounded correction budget — with
+  the LLM planner revising the step's args based on the specific failure reason before each retry,
+  when it can — and report COMPLETE / FAILED (with the real blocker) / BLOCKED (when it can't even
+  form a plan).
 - Read, write (create or, with approval, overwrite), list, search, `mkdir`, inspect, and delete files
   — all sandboxed to configured roots (defaults: the current working directory + Kanna's own home).
 - Run allowlisted interpreters/compilers (`python3`, `gcc`/`g++`, `rustc`, `javac`/`java`, `node`,

@@ -13,6 +13,15 @@ Each step is then executed, its result checked by `verifier.verify()`
 real blocker, never a fabricated success. Every state transition and
 step outcome is persisted via `PlanRepository` so a run can be inspected
 after the fact.
+
+Correction is *args revision*, not blind retry, when the planner
+supports it: before each retry, `_revise()` asks the planner (via the
+optional `revise_step()` capability — see `core.planner.llm_planner.
+LLMPlanner.revise_step`) to fix the failing step's args given the
+specific failure reason, still re-verified in code exactly the same way
+afterward. A planner without that capability (`RuleBasedPlanner`, or an
+`LLMPlanner` whose revision attempt itself fails) falls back to retrying
+with the same args unchanged — today's behavior, never regressed.
 """
 from __future__ import annotations
 
@@ -97,23 +106,40 @@ class AgentLoop:
         )
 
     def _run_step(self, step: PlanStep) -> StepOutcome:
-        self._emit(AgentState.EXECUTING, tool=step.tool_name)
-        result = self.registry.invoke(step.tool_name, step.args, self.ctx)
+        current = step
+        self._emit(AgentState.EXECUTING, tool=current.tool_name)
+        result = self.registry.invoke(current.tool_name, current.args, self.ctx)
         attempts = 1
 
-        self._emit(AgentState.OBSERVING, tool=step.tool_name, success=result.success)
-        self._emit(AgentState.CHECKING, tool=step.tool_name)
-        reasons = verify(step, result)
+        self._emit(AgentState.OBSERVING, tool=current.tool_name, success=result.success)
+        self._emit(AgentState.CHECKING, tool=current.tool_name)
+        reasons = verify(current, result)
 
         while reasons and attempts <= self.max_corrections:
-            self._emit(AgentState.CORRECTING, tool=step.tool_name, attempt=attempts,
+            current = self._revise(current, reasons)
+            self._emit(AgentState.CORRECTING, tool=current.tool_name, attempt=attempts,
                         reasons=reasons)
-            result = self.registry.invoke(step.tool_name, step.args, self.ctx)
+            result = self.registry.invoke(current.tool_name, current.args, self.ctx)
             attempts += 1
-            reasons = verify(step, result)
+            reasons = verify(current, result)
 
-        self._emit(AgentState.VERIFYING, tool=step.tool_name, passed=not reasons)
-        return StepOutcome(step=step, result=result, attempts=attempts)
+        self._emit(AgentState.VERIFYING, tool=current.tool_name, passed=not reasons)
+        return StepOutcome(step=current, result=result, attempts=attempts)
+
+    def _revise(self, step: PlanStep, reasons: list[str]) -> PlanStep:
+        """Before a correction retry, ask the planner to fix the step's args
+        if it can — see the module docstring. Never raises: any revision
+        failure (no capability, LLM unavailable, malformed response,
+        invalid args) falls back to the original step unchanged, which is
+        exactly what ran before this capability existed.
+        """
+        revise = getattr(self.planner, "revise_step", None)
+        if revise is None:
+            return step
+        try:
+            return revise(step, reasons, self.registry)
+        except PlanningError:
+            return step
 
     @staticmethod
     def _summarize(outcomes: list[StepOutcome]) -> str:

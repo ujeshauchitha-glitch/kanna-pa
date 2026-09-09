@@ -83,8 +83,12 @@ planner both interprets the request and picks tools + arguments. Each step is th
 2. **Observe** — the returned `ToolResult`.
 3. **Check** — `core.agent.verifier.verify()` inspects the result against the step's declared
    `expected` postconditions **in code**, never by asking a model if it "looks right".
-4. **Correct if necessary** — a failing step is retried (same tool, same args) up to
-   `max_corrections` times.
+4. **Correct if necessary** — a failing step is retried (same tool) up to `max_corrections` times. If
+   the planner supports it (`LLMPlanner.revise_step` — an *optional* capability `_run_step` detects
+   with `hasattr`, not part of the `Planner` protocol itself, so `RuleBasedPlanner` needs no-op stub),
+   the args are revised based on the specific failure reason before each retry; otherwise, or if that
+   revision attempt itself fails (LLM unavailable, malformed response, invalid args), the retry uses
+   the same args unchanged. Either way, the tool never changes mid-correction — only its args can.
 5. **Verify** — re-run the check after each attempt.
 
 If a step's postconditions never pass within the correction budget, the whole run reports **FAILED**
@@ -93,10 +97,8 @@ never a fabricated success. If the planner can't even produce a plan, the run re
 Every transition is published on the event bus, and the plan + each step's outcome is persisted via
 `PlanRepository` (`plans`/`plan_steps` tables), so a run is inspectable after the fact.
 
-Phase 1's correction strategy is a bounded retry of the identical step — sufficient for transient
-failures (a flaky process, a race). A later phase can make `_run_step` LLM-driven: on failure, ask
-the planner to revise the step's args based on the failure reason before retrying, still bounded by
-the same `max_corrections` budget and still verified the same way.
+See `core/agent/loop.py`'s module docstring and `core/planner/llm_planner.py::LLMPlanner.revise_step`
+for the correction design in full.
 
 ## The tool protocol
 

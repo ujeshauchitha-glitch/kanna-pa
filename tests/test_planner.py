@@ -5,7 +5,9 @@ import pytest
 from core.errors import PlanningError
 from core.llm.base import LLMResponse, Message
 from core.llm.fake import FakeProvider
+from core.llm.null import NullProvider
 from core.planner.llm_planner import LLMPlanner
+from core.planner.plan import PlanStep
 from core.planner.rule_based import RuleBasedPlanner
 
 
@@ -64,7 +66,6 @@ def test_llm_planner_rejects_unknown_tool_raises_without_fallback(registry):
 
 
 def test_llm_planner_falls_back_when_llm_unavailable(registry):
-    from core.llm.null import NullProvider
     planner = LLMPlanner(NullProvider(), fallback=RuleBasedPlanner())
     plan = planner.create_plan("I spent 50 on tea", registry)
     assert plan.steps[0].tool_name == "finance_add_transaction"
@@ -78,3 +79,81 @@ def test_llm_planner_validates_args_against_schema(registry):
     planner = LLMPlanner(provider)
     with pytest.raises(PlanningError):
         planner.create_plan("anything", registry)
+
+
+# -- LLMPlanner.revise_step: LLM-driven correction --
+
+def test_revise_step_returns_corrected_args(registry):
+    original = PlanStep(tool_name="finance_add_transaction", args={"text": ""},
+                         description="log a spend")
+    response = LLMResponse(content='{"args": {"text": "I spent 50 on tea"}}')
+    provider = FakeProvider(responses=[response])
+    planner = LLMPlanner(provider)
+
+    revised = planner.revise_step(original, ["tool call did not succeed: empty text"], registry)
+
+    assert revised.args == {"text": "I spent 50 on tea"}
+    # tool_name/description/expected carry over unchanged — a revision
+    # can't smuggle in a different, unverified tool call.
+    assert revised.tool_name == original.tool_name
+    assert revised.description == original.description
+    assert revised.expected == original.expected
+
+
+def test_revise_step_prompt_includes_tool_name_args_and_reasons(registry):
+    original = PlanStep(tool_name="finance_add_transaction", args={"text": "bad"})
+    response = LLMResponse(content='{"args": {"text": "fixed"}}')
+    provider = FakeProvider(responses=[response])
+    planner = LLMPlanner(provider)
+
+    planner.revise_step(original, ["it broke"], registry)
+
+    sent = provider.calls[0][0].content
+    assert "finance_add_transaction" in sent
+    assert "bad" in sent
+    assert "it broke" in sent
+
+
+def test_revise_step_raises_on_unknown_tool(registry):
+    planner = LLMPlanner(FakeProvider())
+    step = PlanStep(tool_name="not_a_real_tool", args={})
+    with pytest.raises(PlanningError):
+        planner.revise_step(step, ["failed"], registry)
+
+
+def test_revise_step_raises_when_llm_returns_no_json(registry):
+    provider = FakeProvider(responses=[LLMResponse(content="sorry, I can't help")])
+    planner = LLMPlanner(provider)
+    step = PlanStep(tool_name="finance_add_transaction", args={"text": "x"})
+    with pytest.raises(PlanningError):
+        planner.revise_step(step, ["failed"], registry)
+
+
+def test_revise_step_raises_when_response_has_no_args_key(registry):
+    provider = FakeProvider(responses=[LLMResponse(content='{"rationale": "oops"}')])
+    planner = LLMPlanner(provider)
+    step = PlanStep(tool_name="finance_add_transaction", args={"text": "x"})
+    with pytest.raises(PlanningError):
+        planner.revise_step(step, ["failed"], registry)
+
+
+def test_revise_step_raises_when_revised_args_fail_validation(registry):
+    # finance_add_transaction requires "text"; the LLM's revision omits it.
+    provider = FakeProvider(responses=[LLMResponse(content='{"args": {}}')])
+    planner = LLMPlanner(provider)
+    step = PlanStep(tool_name="finance_add_transaction", args={"text": "x"})
+    with pytest.raises(PlanningError):
+        planner.revise_step(step, ["failed"], registry)
+
+
+def test_revise_step_raises_when_llm_unavailable(registry):
+    planner = LLMPlanner(NullProvider())
+    step = PlanStep(tool_name="finance_add_transaction", args={"text": "x"})
+    with pytest.raises(PlanningError):
+        planner.revise_step(step, ["failed"], registry)
+
+
+def test_rule_based_planner_has_no_revise_step_capability():
+    # AgentLoop._revise() checks for this with hasattr — RuleBasedPlanner
+    # not having it is exactly what makes it fall back to identical retry.
+    assert not hasattr(RuleBasedPlanner(), "revise_step")

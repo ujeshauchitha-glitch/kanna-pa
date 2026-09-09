@@ -30,6 +30,22 @@ Only use tool names from this list, and make sure "args" satisfies each tool's i
 If the request cannot be fulfilled with these tools, respond with {{"rationale": "...", "steps": []}}.
 """
 
+_REVISE_SYSTEM_TEMPLATE = """You are Kanna's planner, fixing one failing step of a plan already in \
+progress. Given the tool's input schema, the args that were tried, and why the attempt failed, \
+respond with ONLY a JSON object (no prose, no markdown fences) of the form:
+
+{{"args": {{...}}}}
+
+"args" must satisfy this tool's input schema exactly:
+
+{tool_schema}
+
+Keep every part of "args" that isn't implicated by the failure reason unchanged. Do not invent \
+information you don't have (a file path, an amount, a name) to fill a gap — if the failure reason \
+doesn't point to a fixable mistake in the args themselves (e.g. the tool is genuinely unavailable, or \
+a value is missing that only the user could supply), return "args_tried" unchanged rather than \
+guessing."""
+
 _JSON_BLOCK_RE = re.compile(r"\{.*\}", re.DOTALL)
 
 
@@ -80,3 +96,60 @@ class LLMPlanner:
             steps.append(PlanStep(tool_name=tool_name, args=args, description=step.get("description", "")))
 
         return Plan(request=request, steps=steps, rationale=payload.get("rationale", ""))
+
+    def revise_step(self, step: PlanStep, reasons: list[str], registry: ToolRegistry) -> PlanStep:
+        """Ask the LLM to fix a failing step's args, given why it failed.
+
+        Only `args` can change — `tool_name`, `description`, and
+        `expected` all carry over unchanged, so a revision can never
+        smuggle in a different (unverified) tool call under the same
+        step; the caller still re-runs `verify()` on whatever this
+        produces, exactly as it would on an identical retry.
+
+        This is an *extra* capability beyond the `Planner` protocol
+        (`AgentLoop._run_step` checks for it with `hasattr` rather than
+        every planner having to implement it) — `RuleBasedPlanner` has
+        no LLM to ask, so it has no `revise_step`, and a failing step
+        under it retries with the same args unchanged, same as before
+        this existed.
+
+        Raises `PlanningError` on any failure (LLM unavailable, no JSON
+        in the response, args that don't validate) — the caller falls
+        back to retrying with the original args unchanged rather than
+        ever surfacing a revision failure as a crash. A correction
+        attempt that doesn't work is not worse than no correction.
+        """
+        if not registry.has(step.tool_name):
+            raise PlanningError(f"cannot revise: unknown tool {step.tool_name!r}")
+        tool = registry.get(step.tool_name)
+
+        system = _REVISE_SYSTEM_TEMPLATE.format(
+            tool_schema=json.dumps(tool.input_schema.to_json_schema(), indent=2)
+        )
+        user_content = json.dumps({
+            "tool_name": step.tool_name, "args_tried": step.args, "failure_reasons": reasons,
+        }, indent=2)
+
+        try:
+            response = self.provider.complete([Message(role="user", content=user_content)], system=system)
+        except LLMUnavailable as exc:
+            raise PlanningError(f"cannot revise: LLM unavailable: {exc}") from exc
+
+        match = _JSON_BLOCK_RE.search(response.content)
+        if not match:
+            raise PlanningError(f"LLM did not return a JSON revision: {response.content[:200]!r}")
+        try:
+            payload = json.loads(match.group(0))
+        except json.JSONDecodeError as exc:
+            raise PlanningError(f"LLM returned invalid JSON revision: {exc}") from exc
+
+        args = payload.get("args")
+        if not isinstance(args, dict):
+            raise PlanningError("LLM revision response had no 'args' object")
+        try:
+            tool.input_schema.validate(args)
+        except ValidationError as exc:
+            raise PlanningError(f"revised args for {step.tool_name!r} failed validation: {exc}") from exc
+
+        return PlanStep(tool_name=step.tool_name, args=args, description=step.description,
+                         expected=step.expected)

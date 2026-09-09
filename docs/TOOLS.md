@@ -33,9 +33,25 @@ escapes before touching disk.
 `process_run` (LOW) runs an allowlisted executable as an argv list — **never through a shell**, so
 there's no metacharacter-injection surface. Captures stdout, stderr, exit code, wall-clock duration,
 and enforces a timeout (default 30s, max 300s). The default allowlist covers the interpreters/
-compilers Phase 1 targets: `python3`, `pytest`, `gcc`/`g++`/`cc`/`c++`, `rustc`/`cargo`, `javac`/
-`java`, `node`/`npm`, `octave`/`octave-cli`, plus `echo`/`cat`/`ls`. A caller needing a different set
-constructs its own `ProcessTool(allowed_executables=...)` rather than widening the shared default.
+compilers/build tools Phase 1+2 target: `python3`, `pytest`, `gcc`/`g++`/`cc`/`c++`/`make`, `rustc`/
+`cargo`, `javac`/`java`, `node`/`npm`, `octave`/`octave-cli`, plus `echo`/`cat`/`ls`. A caller needing
+a different set constructs its own `ProcessTool(allowed_executables=...)` rather than widening the
+shared default.
+
+## Project scaffolding (`tools/scaffold/`)
+
+`project_scaffold` (LOW by default, REVIEW-and-gated only when it would overwrite existing files —
+same policy pattern as `fs_write_file`/`document_generate_*`) generates a minimal, real, buildable
+project skeleton for a language with no single-command scaffolding tool of its own. See
+`docs/RUNTIMES.md` for why Rust/Node aren't covered here (use `process_run` with `cargo new`/`npm
+init` — they already have a real tool) and why the Java template has no Maven/Gradle `pom.xml`.
+
+| Tool | Permission | What it does |
+|---|---|---|
+| `project_scaffold` | REVIEW* | Generate a C, C++, or Java project skeleton (Makefile/build commands + a "hello world" source file) in a sandboxed directory |
+
+\* Same downgrade rule as `fs_write_file`: auto-allowed when it wouldn't overwrite anything
+(`overwrite=false`, the default); an explicit `overwrite=true` stays gated.
 
 ## Finance (`finance/tools.py`)
 

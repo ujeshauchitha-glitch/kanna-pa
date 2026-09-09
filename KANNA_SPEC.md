@@ -48,9 +48,13 @@ files, runs code, queries its own database — rather than just describing steps
   then on, anywhere `bootstrap()` is the entry point, without asking again. See `docs/SECURITY.md`.
 - Read, write (create or, with approval, overwrite), list, search, `mkdir`, inspect, and delete files
   — all sandboxed to configured roots (defaults: the current working directory + Kanna's own home).
-- Run allowlisted interpreters/compilers (`python3`, `gcc`/`g++`, `rustc`, `javac`/`java`, `node`,
-  `octave`, ...) as a real subprocess (no shell) with captured stdout/stderr/exit code/duration and a
-  timeout.
+- Run allowlisted interpreters/compilers (`python3`, `gcc`/`g++`/`make`, `rustc`, `javac`/`java`,
+  `node`, `octave`, ...) as a real subprocess (no shell) with captured stdout/stderr/exit code/duration
+  and a timeout.
+- Scaffold a minimal, buildable C, C++, or Java project (`project_scaffold`) — Makefile/build commands
+  plus a working "hello world" — for the ecosystems with no single-command scaffolding tool of their
+  own; Rust and Node already have one (`cargo new`/`npm init`), reachable directly through
+  `process_run`. See `docs/RUNTIMES.md`.
 - Track a personal finance ledger: natural-language transaction entry ("I spent ₹340 on lunch"),
   natural-language queries ("How much did I spend on food this month?"), categories with keyword-based
   auto-categorization, budgets with status/alerts, recurring expenses (with correct month-end
@@ -90,9 +94,12 @@ files, runs code, queries its own database — rather than just describing steps
   desktop with a live X11 session, not literally only Fedora) and one honest fallback
   (`NullComputerAgent`). No Windows/Phone backend, and no router across multiple registered devices,
   exist yet — see `docs/DEVICES.md`.
-- **Handwriting generation, non-Python code runtimes beyond what's listed above** (Octave/C#/full Java
+- **Handwriting generation, non-Python code runtimes beyond what's listed above** (C#/full Java
   toolchains depend on binaries that may not be installed on a given machine — the process tool will
   report that honestly rather than fake output).
+- **Dependency resolution in scaffolded projects, Maven/Gradle-based Java scaffolding** —
+  `project_scaffold`'s generated projects have zero external dependencies by design; see
+  `docs/RUNTIMES.md`.
 - **Multi-tab/multi-context browsing, session persistence across restarts, file upload/download in the
   browser, or a `kanna browser ...` CLI subcommand** — the browser tool has one real backend
   (`PlaywrightBrowserAgent`) reachable only through the tool registry/agent loop today — see

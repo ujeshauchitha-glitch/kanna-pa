@@ -85,21 +85,27 @@ python main.py scheduler daemon            # run forever, checking every 60s (Ct
 
 See `docs/SCHEDULER.md`, including a documented systemd unit for running the daemon as a service.
 
+`project_scaffold` generates a minimal, real, buildable C/C++/Java project skeleton — reachable
+through the tool registry/agent loop today, no CLI subcommand yet (for Rust or Node, use
+`process_run` with `cargo new`/`npm init` instead, since those already have a real scaffolding tool).
+See `docs/RUNTIMES.md`.
+
 ## Project layout
 
 ```
 core/          agent loop, planner, tool protocol/registry, permissions, memory (SQLite), config,
                logging, events, LLM provider abstraction, task system
-tools/         filesystem, process execution, computer control (FedoraAgent — real, X11-based),
-               browser automation (PlaywrightBrowserAgent — real, Chromium-based)
+tools/         filesystem, process execution (incl. make), computer control (FedoraAgent — real,
+               X11-based), browser automation (PlaywrightBrowserAgent — real, Chromium-based),
+               project scaffolding for C/C++/Java
 finance/       transactions, categories, budgets, recurring expenses, import/export, analytics
 vision/        OCR + receipt/statement structure extraction, Anthropic-vision-backed
 documents/     DOCX/PPTX/PDF generation from one shared content model, fully offline
 automation/    scheduler (once/interval/weekly schedules) + a real daemon mode
 interfaces/    CLI
 tests/         pytest suite, one file per subsystem
-docs/          architecture, tools, finance, vision, documents, devices, browser, scheduler, security,
-               testing, roadmap
+docs/          architecture, tools, finance, vision, documents, devices, browser, scheduler,
+               runtimes, security, testing, roadmap
 ```
 
 See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the full picture.

@@ -15,12 +15,13 @@ def test_build_registry_includes_every_subsystem():
     assert {"computer_screenshot", "computer_click", "computer_inspect_screen"} <= names
     assert {"browser_navigate", "browser_click", "browser_fill"} <= names
     assert "vision_extract_structure" in names
+    assert "project_scaffold" in names
 
 
 def test_default_policy_downgrades_create_new_file_to_allow():
     policy = default_policy()
     for tool_name in ("fs_write_file", "document_generate_docx", "document_generate_pptx",
-                       "document_generate_pdf"):
+                       "document_generate_pdf", "project_scaffold"):
         decision = policy.decide(tool_name=tool_name, args={"overwrite": False},
                                   level=PermissionLevel.REVIEW)
         assert decision == Decision.ALLOW, tool_name
@@ -32,7 +33,7 @@ def test_default_policy_downgrades_create_new_file_to_allow():
 def test_default_policy_keeps_overwrite_gated():
     policy = default_policy()
     for tool_name in ("fs_write_file", "document_generate_docx", "document_generate_pptx",
-                       "document_generate_pdf"):
+                       "document_generate_pdf", "project_scaffold"):
         decision = policy.decide(tool_name=tool_name, args={"overwrite": True},
                                   level=PermissionLevel.REVIEW)
         assert decision == Decision.REQUIRE_APPROVAL, tool_name

@@ -21,8 +21,10 @@ configuration** (`TrustStoreGate`, `kanna trust add/list/remove` — persisted s
 specific tool+argument patterns, shared across every entry point built on `bootstrap()` — see
 `docs/SECURITY.md`), and a **scheduler daemon + `kanna scheduler add`** (`SchedulerDaemon` — a real
 run-forever/bounded-ticks loop around `Scheduler.tick()`, a documented systemd unit — plus the CLI
-command that was actually missing to create a schedule at all in Phase 1 — see `docs/SCHEDULER.md`).
-Everything below is not yet built.
+command that was actually missing to create a schedule at all in Phase 1 — see `docs/SCHEDULER.md`),
+and **project scaffolding for C/C++/Java** (`project_scaffold`, plus `make` joining the `process_run`
+allowlist so a generated Makefile-based project is actually buildable through Kanna's own tools, not
+just generated — see `docs/RUNTIMES.md`). Everything below is not yet built.
 
 ## Vision (done, Phase 2) — what's left in this area
 
@@ -122,18 +124,21 @@ Everything below is not yet built.
 - No pause/resume — `remove` is a one-way deactivation; there's no CLI command to reactivate a
   removed schedule.
 
+## Runtimes beyond Python (done, this pass) — what's left in this area
+
+- No dependency resolution — every generated skeleton has zero external dependencies (no
+  vcpkg/conan for C/C++, no Maven/Gradle for Java).
+- No `kanna scaffold ...` CLI subcommand yet — registry/agent-loop path only.
+- No test-framework scaffolding, no library-vs-binary distinction, no MSVC/`nmake` support.
+
 ## Next candidates, roughly in order of leverage
 
-1. **Runtimes beyond Python.** C/C++/Rust/Java toolchains are already reachable through
-   `process_run`'s allowlist when installed; what's missing is per-language project scaffolding
-   (build file generation, dependency resolution) if Kanna should set those up itself rather than
-   just compile/run what's already there.
-2. **Education/assignment workflow, NeoColab integration, handwriting rendering.** Document generation
+1. **Education/assignment workflow, NeoColab integration, handwriting rendering.** Document generation
    and generic document structure extraction are both done now, so the pieces exist — an assignment
    workflow is essentially "read the assignment PDF via `vision_extract_structure`, do the work, write
    it up via `documents`." What's missing is the workflow itself: turning an extracted
    `DocumentStructure` into actual work items, and a `documents.model.Document` to render the result.
-3. **Additional device backends** (Windows, Phone) and the capability-based router across them, now
+2. **Additional device backends** (Windows, Phone) and the capability-based router across them, now
    that `FedoraAgent` has validated the `ComputerAgent` interface in practice.
 
 ## Explicitly deferred, no strong opinion yet

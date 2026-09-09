@@ -57,3 +57,12 @@ def test_custom_allowlist_restricts_further(ctx):
     result = tool.execute({"command": ["python3", "-c", "print(1)"]}, ctx)
     assert not result.success
     assert result.error.code == "executable_not_allowed"
+
+
+def test_default_allowlist_includes_make():
+    # 'make' exists specifically so a tools.scaffold-generated C/C++
+    # project's Makefile is actually runnable through process_run, not
+    # just generated — see tests/test_scaffold_build.py for the
+    # end-to-end proof.
+    from tools.process.run_process import DEFAULT_ALLOWED_EXECUTABLES
+    assert "make" in DEFAULT_ALLOWED_EXECUTABLES

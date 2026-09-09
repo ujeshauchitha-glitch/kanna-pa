@@ -41,10 +41,10 @@ on every push; locally, without any browser installed, it skips cleanly.
 `tests/test_browser_tools.py` covers the tool layer via `tools.browser.fake.FakeBrowserAgent` instead,
 so that coverage never depends on a real browser.
 
-As of this writing: **334 tests when a display is available (322 + 12 skipped without one), all
+As of this writing: **351 tests when a display is available (339 + 12 skipped without one), all
 passing**, covering every Phase 1 subsystem plus Phase 2 vision (receipts, statements, and generic
 document structure), document generation, computer control, browser automation, LLM-driven step
-correction, trusted-automation configuration, and the scheduler daemon.
+correction, trusted-automation configuration, the scheduler daemon, and C/C++/Java project scaffolding.
 
 ## Layout
 
@@ -58,7 +58,7 @@ correction, trusted-automation configuration, and the scheduler daemon.
 | `test_db.py` | Migration application + idempotency, foreign-key enforcement, file-backed persistence across connections |
 | `test_repositories.py` | Session/task/execution-log repository CRUD |
 | `test_fs_tools.py` | Every filesystem tool's success and failure paths, sandbox rejection |
-| `test_process_tool.py` | stdout/stderr/exit-code capture, executable allowlist enforcement, timeout, output truncation |
+| `test_process_tool.py` | stdout/stderr/exit-code capture, executable allowlist enforcement, timeout, output truncation, `make` present in the default allowlist |
 | `test_money.py` | Parsing (symbols, codes, thousands separators, embedded in a sentence), rounding, currency-mismatch errors |
 | `test_finance_nlp.py` | The spec's own worked example + merchant/date/category-hint extraction, query period parsing |
 | `test_finance_transactions.py` | Transaction creation, category inference, date-boundary filtering, monthly/category totals, multi-currency separation |
@@ -83,6 +83,8 @@ correction, trusted-automation configuration, and the scheduler daemon.
 | `test_documents_pptx.py` | `render_pptx` end-to-end, incl. the table-only-section-must-keep-its-heading regression (see `docs/DOCUMENTS.md`) |
 | `test_documents_pdf.py` | `render_pdf` end-to-end (valid `%PDF-` header, non-trivial size), incl. a regression test for XML-escaping special characters and for out-of-range heading levels |
 | `test_documents_tools.py` | All three `document_generate_*` tools: creation, sandbox rejection, overwrite protection, directory-path rejection |
+| `test_scaffold_tools.py` | `project_scaffold` tool layer: creation per language, `project_name` defaulting vs. override, overwrite refusal/acceptance, sandbox rejection, non-directory destination, unsupported language, permission level |
+| `test_scaffold_build.py` | Every generated skeleton built and run for real (`make`/`make run` for C/C++, `javac`+`java` for Java), `make clean` actually removing the binary, and an end-to-end `project_scaffold` → `process_run` (`make`) proof — skipped per-language if that compiler/`make` isn't installed |
 | `test_bootstrap.py` | `build_registry()` includes every subsystem's tools; `default_policy()`'s create-vs-overwrite rule, generalized to cover `fs_write_file` and all three `document_generate_*` tools |
 | `test_computer_null.py` | Every `NullComputerAgent` method raises `CapabilityUnavailable` with a real reason |
 | `test_fedora_agent.py` | The real `FedoraAgent` against a live X11 session (see above) — screenshot validity, a real click→type→Ctrl-D→read-the-file round trip, clipboard round trip, open/close application, honest failures with no display or a missing binary |

@@ -30,6 +30,8 @@ tools/
   browser/      BrowserAgent protocol, PlaywrightBrowserAgent (real, Chromium-based),
                 FakeBrowserAgent (tests), get_browser_agent() (process-level singleton session),
                 tools.py (registry-exposed browser_* tools)
+  scaffold/     Pure project-skeleton generators for C/C++/Java (templates.py — no ecosystem
+                scaffolding tool exists for these, unlike cargo/npm), tools.py (project_scaffold)
 
 finance/        money.py (exact integer-minor-unit arithmetic), models.py, repository.py (SQL),
                 dates.py (shared date-string normalization), nlp.py (deterministic NL parsing),

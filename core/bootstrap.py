@@ -35,6 +35,7 @@ from finance import tools as finance_tools
 from tools import filesystem, process
 from tools.browser import tools as browser_tools
 from tools.computer import tools as computer_tools
+from tools.scaffold import tools as scaffold_tools
 from vision import tools as vision_tools
 
 # Tools registered at REVIEW by default (the safe default — see each
@@ -43,6 +44,7 @@ from vision import tools as vision_tools
 # low-risk; only an explicit overwrite=True stays REVIEW-gated.
 _CREATE_OR_OVERWRITE_TOOLS = frozenset({
     "fs_write_file", "document_generate_docx", "document_generate_pptx", "document_generate_pdf",
+    "project_scaffold",
 })
 
 
@@ -71,6 +73,7 @@ def build_registry(*, gate: ApprovalGate | None = None,
     computer_tools.register_all(registry)
     browser_tools.register_all(registry)
     vision_tools.register_all(registry)
+    scaffold_tools.register_all(registry)
     return registry
 
 

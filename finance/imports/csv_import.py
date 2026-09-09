@@ -12,6 +12,7 @@ import io
 from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 
+from finance.dates import normalize_date
 from finance.models import Transaction
 from finance.money import Money
 from finance.repository import CategoryRepository, TransactionRepository, content_hash
@@ -60,7 +61,7 @@ def import_csv(csv_text: str, *, tx_repo: TransactionRepository, cat_repo: Categ
             if not amount_str:
                 raise ValueError("missing amount")
 
-            occurred_at = _normalize_date(date_str)
+            occurred_at = normalize_date(date_str)
 
             try:
                 money = Money.from_decimal(Decimal(amount_str.replace(",", "")), default_currency)
@@ -88,15 +89,3 @@ def import_csv(csv_text: str, *, tx_repo: TransactionRepository, cat_repo: Categ
             result.errors.append(ImportError_(row_number=row_number, error=str(exc), raw_row=dict(row)))
 
     return result
-
-
-def _normalize_date(raw: str) -> str:
-    """Accept YYYY-MM-DD, DD/MM/YYYY, or MM/DD/YYYY and normalize to YYYY-MM-DD."""
-    from datetime import datetime
-
-    for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y", "%d-%m-%Y"):
-        try:
-            return datetime.strptime(raw, fmt).date().isoformat()
-        except ValueError:
-            continue
-    raise ValueError(f"unrecognized date format: {raw!r}")

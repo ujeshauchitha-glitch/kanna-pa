@@ -10,7 +10,7 @@ callers are expected to pass a naive UTC `now` (see `Scheduler.tick`).
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, time, timedelta
 
 _WEEKLY_REQUIRED = {"weekday", "time", "anchor_date"}

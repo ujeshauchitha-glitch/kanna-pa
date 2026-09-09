@@ -11,7 +11,7 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass, field
 
-from core.errors import PermissionDenied, ToolExecutionError, ToolNotFound, ValidationError
+from core.errors import ToolNotFound, ValidationError
 from core.events.types import Event
 from core.memory.repositories.execution_log import ExecutionLogRepository
 from core.permissions.gate import ApprovalGate, DenyAllGate

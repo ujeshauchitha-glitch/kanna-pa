@@ -7,7 +7,7 @@ an LLM. This is the only place allowed to answer "how much did I spend".
 from __future__ import annotations
 
 from collections import defaultdict
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from finance.models import Budget, Transaction
 from finance.money import Money

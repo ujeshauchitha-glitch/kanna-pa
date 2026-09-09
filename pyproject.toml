@@ -15,9 +15,14 @@ dependencies = []
 # Real Anthropic-backed LLM provider. Core works without it (rule-based
 # planner + finance NLP are pure stdlib and always available).
 llm = ["anthropic>=0.40"]
-# Future subsystems — not wired up in Phase 1, listed so `pip install
-# kanna[vision]` etc. has somewhere to grow into.
-vision = ["pillow"]
+# Anthropic-vision-backed OCR/receipt extraction (vision/ocr,
+# vision/document). Needs the same 'anthropic' package as the llm extra;
+# listed again here so `pip install kanna[vision]` alone is sufficient.
+# 'pillow' isn't imported by any Phase 2 code yet but is kept for planned
+# image-editing/validation work.
+vision = ["anthropic>=0.40", "pillow"]
+# Future subsystems — not wired up yet, listed so `pip install
+# kanna[browser]` etc. has somewhere to grow into.
 browser = ["playwright"]
 docs = ["python-docx", "pypdf"]
 dev = ["pytest>=8"]
@@ -26,7 +31,7 @@ dev = ["pytest>=8"]
 kanna = "main:main"
 
 [tool.setuptools.packages.find]
-include = ["core*", "tools*", "finance*", "automation*", "interfaces*"]
+include = ["core*", "tools*", "finance*", "automation*", "interfaces*", "vision*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

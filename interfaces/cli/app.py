@@ -45,7 +45,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def _cmd_init(args: argparse.Namespace, kanna) -> int:
-    print(f"Kanna initialized.")
+    print("Kanna initialized.")
     print(f"  database: {kanna.db.path}")
     print(f"  sandbox roots: {', '.join(str(r) for r in kanna.sandbox.roots)}")
     print(f"  planner: {type(kanna.planner).__name__}")

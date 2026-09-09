@@ -51,6 +51,10 @@ class LLMUnavailable(KannaError):
     """No usable LLM provider is configured (e.g. missing API key)."""
 
 
+class VisionUnavailable(KannaError):
+    """No usable vision provider is configured (e.g. missing API key or package)."""
+
+
 class PlanningError(KannaError):
     """The planner could not produce a valid plan for the request."""
 

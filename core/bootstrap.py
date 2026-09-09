@@ -110,4 +110,4 @@ def bootstrap(*, config_path: Path | None = None, db_path: Path | str | None = N
     planner = build_planner(settings, force_rule_based=force_rule_based_planner)
 
     return Kanna(settings=settings, db=db, sandbox=sandbox, event_bus=event_bus,
-                 registry=registry, planner=planner, logger=logging.getLogger("kanna"))
+                 registry=registry, planner=planner, logger=logger)

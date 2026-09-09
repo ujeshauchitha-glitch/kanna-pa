@@ -44,7 +44,12 @@ these all rely on.
 | `finance_set_budget` | Create a budget for a category (or overall) over a period |
 | `finance_add_recurring` | Register a recurring expense |
 | `finance_import_csv` | Import transactions from CSV text (deduped) |
+| `finance_import_receipt` | Log a transaction by reading a receipt image/PDF (vision-backed, see `docs/VISION.md`) |
 | `finance_export` | Export transactions as CSV or JSON |
+
+`finance_import_receipt` additionally needs `ANTHROPIC_API_KEY` (it uses
+`vision.document.anthropic_document.AnthropicDocumentProvider` by default) — without one it fails
+cleanly with a `VisionUnavailable`-derived error rather than crashing or fabricating a transaction.
 
 ## Computer control (`tools/computer/`)
 

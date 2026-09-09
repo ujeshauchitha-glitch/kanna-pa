@@ -7,7 +7,7 @@ instead of every caller touching the repository directly.
 from __future__ import annotations
 
 from core.memory.db import Database
-from core.memory.repositories.sessions import Message, Session, SessionRepository
+from core.memory.repositories.sessions import Message, SessionRepository
 
 
 class AgentSession:

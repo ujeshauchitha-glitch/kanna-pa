@@ -9,10 +9,11 @@ python -m pytest -q
 
 No network access, no API key, and no external binaries beyond `python3` itself are required — every
 test that would otherwise need an LLM uses `core.llm.fake.FakeProvider` or
-`core.llm.null.NullProvider`, and the process-tool tests only invoke `python3` (always present in
-this environment).
+`core.llm.null.NullProvider`, every test that would otherwise need vision uses
+`vision.ocr.fake.FakeOCRProvider`/`vision.document.fake.FakeDocumentProvider`, and the process-tool
+tests only invoke `python3` (always present in this environment).
 
-As of this writing: **137 tests, all passing**, covering every Phase 1 subsystem.
+As of this writing: **171 tests, all passing**, covering every Phase 1 subsystem plus Phase 2 vision.
 
 ## Layout
 
@@ -33,6 +34,11 @@ As of this writing: **137 tests, all passing**, covering every Phase 1 subsystem
 | `test_finance_budgets.py` | Budget status under/over budget, spending alerts, category exclusion |
 | `test_finance_recurring.py` | Every recurrence frequency, explicit month-end rollover (incl. leap year), applying due recurring expenses |
 | `test_finance_csv.py` | Import success/error-per-row, dedup, export round-trip, custom column mapping |
+| `test_finance_dates.py` | Date-string normalization across every supported format, unrecognized-format error |
+| `test_vision_ocr.py` | `FakeOCRProvider` scripted results/responder callback |
+| `test_vision_document.py` | `FakeDocumentProvider` + `parse_receipt_json` (valid, all-null, wrong-typed fields, malformed line items) as a pure function |
+| `test_finance_receipt_import.py` | Receipt → transaction: happy path + category inference, missing/unparseable amount, missing/unparseable date fallback, currency fallback, dedup, vision-provider failure — all via `FakeDocumentProvider` |
+| `test_finance_receipt_tool.py` | `finance_import_receipt` tool: sandboxed read, mime-type guessing/override, unsupported file type, extraction failure, duplicate reporting |
 | `test_planner.py` | Rule-based intent recognition + failure, LLM planner validation/fallback (via `FakeProvider`) |
 | `test_agent_loop.py` | Happy path, transient-failure-then-correction, permanent failure reporting FAILED (never a fabricated COMPLETE), unplannable request reporting BLOCKED, plan/step persistence |
 | `test_scheduler.py` | Pure due-time computation for all three schedule kinds (including the spec's "every two weeks on Tuesday" example), `Scheduler.tick()` execution/skip/failure recording |
@@ -42,7 +48,10 @@ As of this writing: **137 tests, all passing**, covering every Phase 1 subsystem
 
 `db` (in-memory, migrated), `sandbox` (scoped to `tmp_path`), `settings`, `event_bus`, `ctx` (a real
 `ToolContext` with a real session row, so FK constraints hold), `registry`/`strict_registry` (every
-Phase 1 tool registered, with a `PreApprovedGate` or `DenyAllGate` respectively).
+registered tool, including `finance_import_receipt`, with a `PreApprovedGate` or `DenyAllGate`
+respectively — note `finance_import_receipt` still needs a `provider=` override or
+`ANTHROPIC_API_KEY` to actually run; tests that exercise it construct the tool directly with a
+`FakeDocumentProvider` rather than going through this fixture).
 
 ## Principles for adding tests
 

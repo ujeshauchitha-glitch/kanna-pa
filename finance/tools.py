@@ -7,6 +7,7 @@ tool-use) reaches these.
 """
 from __future__ import annotations
 
+from core.errors import SandboxViolation
 from core.permissions.levels import PermissionLevel
 from core.tools.context import ToolContext
 from core.tools.registry import ToolRegistry
@@ -14,8 +15,11 @@ from core.tools.result import ToolResult
 from core.tools.schema import array, integer, obj, string
 from finance.export import to_csv, to_json
 from finance.imports.csv_import import import_csv
-from finance.repository import CategoryRepository, TransactionRepository
+from finance.imports.receipt import import_receipt
 from finance.service import FinanceService
+from vision._common import guess_mime_type
+from vision.document.anthropic_document import AnthropicDocumentProvider
+from vision.document.base import DocumentProvider
 
 
 def _service(ctx: ToolContext) -> FinanceService:
@@ -158,9 +162,72 @@ class FinanceExportTool:
         return ToolResult.ok({"content": content, "count": len(transactions)})
 
 
+class FinanceImportReceiptTool:
+    """Logs a transaction from a photographed/scanned receipt (image or PDF).
+
+    Vision-backed extraction (see `vision.document`) is used only to
+    *read* what's printed on the receipt — the amount is then parsed
+    and persisted the same deterministic way as every other entry path
+    (`finance/imports/receipt.py`).
+    """
+
+    name = "finance_import_receipt"
+    description = "Log a transaction by reading a receipt image or PDF (path within the sandbox)."
+    permission = PermissionLevel.LOW
+    input_schema = obj(
+        {
+            "path": string(description="Path to the receipt image/PDF, within the sandbox"),
+            "mime_type": string(description="Override the guessed mime type, e.g. 'image/png'",
+                                 default=""),
+        },
+        required=("path",),
+    )
+    output_schema = obj({
+        "created": integer(), "skipped_duplicate": string(), "transaction_id": string(),
+        "error": string(),
+    })
+
+    def __init__(self, provider: DocumentProvider | None = None) -> None:
+        self._provider = provider
+
+    def execute(self, args: dict, ctx: ToolContext) -> ToolResult:
+        try:
+            resolved = ctx.sandbox.resolve(args["path"])
+        except SandboxViolation as exc:
+            return ToolResult.fail("sandbox_violation", str(exc))
+
+        if not resolved.exists() or not resolved.is_file():
+            return ToolResult.fail("not_found", f"file does not exist: {resolved}")
+
+        mime_type = args.get("mime_type") or ""
+        if not mime_type:
+            try:
+                mime_type = guess_mime_type(resolved)
+            except ValueError as exc:
+                return ToolResult.fail("unsupported_file_type", str(exc))
+
+        provider = self._provider or AnthropicDocumentProvider(
+            model=ctx.settings.llm_model, max_tokens=ctx.settings.llm_max_tokens,
+        )
+        svc = _service(ctx)
+        result = import_receipt(
+            resolved.read_bytes(), mime_type=mime_type, tx_repo=svc.transactions,
+            cat_repo=svc.categories, provider=provider, default_currency=svc.default_currency,
+        )
+
+        if result.errors:
+            return ToolResult.fail("receipt_extraction_failed", result.errors[0].error)
+        if result.skipped_duplicates:
+            return ToolResult.ok({"created": 0, "skipped_duplicate": "True", "transaction_id": "",
+                                   "error": ""})
+        return ToolResult.ok({"created": result.created, "skipped_duplicate": "False",
+                               "transaction_id": result.created_transaction_ids[0], "error": ""})
+
+
 ALL_TOOLS = [
     FinanceAddTransactionTool(), FinanceQueryTool(), FinanceSetBudgetTool(),
     FinanceAddRecurringTool(), FinanceImportCsvTool(), FinanceExportTool(),
+    FinanceImportReceiptTool(),
 ]
 
 

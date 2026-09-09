@@ -1,6 +1,6 @@
 # Architecture
 
-## Module map (Phase 1)
+## Module map (Phase 1 + Phase 2 vision)
 
 ```
 core/
@@ -27,9 +27,16 @@ tools/
   computer/     ComputerAgent protocol + NullComputerAgent (honest "unavailable", no fake backend)
 
 finance/        money.py (exact integer-minor-unit arithmetic), models.py, repository.py (SQL),
-                nlp.py (deterministic NL parsing), analytics.py (the only place a total is computed),
-                recurring.py (occurrence math), imports/, export.py, service.py (orchestration),
-                tools.py (registry-exposed finance_* tools)
+                dates.py (shared date-string normalization), nlp.py (deterministic NL parsing),
+                analytics.py (the only place a total is computed), recurring.py (occurrence math),
+                imports/ (csv_import.py, receipt.py — vision-backed, interfaces.py), export.py,
+                service.py (orchestration), tools.py (registry-exposed finance_* tools)
+
+vision/
+  _common.py    Shared Anthropic-client + content-block helpers
+  ocr/          OCRProvider protocol, AnthropicOCRProvider (real), FakeOCRProvider (tests)
+  document/     DocumentProvider protocol, AnthropicDocumentProvider (real, receipt extraction),
+                FakeDocumentProvider (tests)
 
 automation/
   scheduler/    Schedule (once/interval/weekly), pure due-time computation, SchedulerStore
@@ -42,9 +49,10 @@ interfaces/
 main.py         `python main.py <command> ...`
 ```
 
-Directories present in the target structure but not yet populated (`vision/`, `runtimes/`,
-`work/`, `education/`, `devices/`, `interfaces/voice`, `interfaces/desktop`, `interfaces/mobile`) are
+Directories present in the target structure but not yet populated (`runtimes/`, `work/`,
+`education/`, `devices/`, `interfaces/voice`, `interfaces/desktop`, `interfaces/mobile`) are
 deliberately not created until there's real code to put in them — see `docs/ROADMAP.md`.
+`vision/` is populated as of Phase 2, scoped to OCR + receipt extraction — see `docs/VISION.md`.
 
 ## The agent loop
 

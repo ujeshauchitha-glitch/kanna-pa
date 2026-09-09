@@ -192,7 +192,6 @@ class FinanceService:
 
         created = []
         for rec in self.recurring.due(as_of_date):
-            category = self.categories.get(rec.category_id) if rec.category_id else None
             tx = self.transactions.create(Transaction(
                 id="", amount_minor=rec.amount_minor, currency=rec.currency,
                 occurred_at=rec.next_occurrence, category_id=rec.category_id,

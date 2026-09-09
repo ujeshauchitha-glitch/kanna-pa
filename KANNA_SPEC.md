@@ -29,11 +29,13 @@ files, runs code, queries its own database — rather than just describing steps
    anything irreversible or external) require an `ApprovalGate` to say yes — the default gate says no
    to everything. See `docs/SECURITY.md`.
 5. **Honest about what it can't do.** A capability with no real implementation (computer control,
-   OCR, browser automation in Phase 1) reports `CapabilityUnavailable` instead of a fake success.
+   browser automation) reports `CapabilityUnavailable`/`VisionUnavailable` instead of a fake success —
+   see `vision/ocr/anthropic_ocr.py` for the same discipline applied to a capability (vision) that
+   *is* implemented but can still be unconfigured.
 6. **Every run is inspectable.** The agent loop persists its plan, each step's result, and every tool
    invocation (`execution_log`) to SQLite, so a run can be audited after the fact.
 
-## What Kanna can do today (Phase 1)
+## What Kanna can do today (Phase 1 + Phase 2 vision)
 
 - Take a natural-language request via `kanna ask "<request>"`, plan it (rule-based pattern matching,
   or an LLM planner when `ANTHROPIC_API_KEY` is set), execute it through the tool registry, verify
@@ -47,8 +49,12 @@ files, runs code, queries its own database — rather than just describing steps
 - Track a personal finance ledger: natural-language transaction entry ("I spent ₹340 on lunch"),
   natural-language queries ("How much did I spend on food this month?"), categories with keyword-based
   auto-categorization, budgets with status/alerts, recurring expenses (with correct month-end
-  rollover), CSV import (deduped) and CSV/JSON export. All arithmetic is exact integer minor-unit
-  math — see `docs/FINANCE.md`.
+  rollover), CSV import (deduped), **receipt image/PDF import (vision-backed)**, and CSV/JSON export.
+  All arithmetic is exact integer minor-unit math — see `docs/FINANCE.md`.
+- Read text out of an image or PDF (`vision/ocr`) and extract structured receipt data — merchant,
+  date, amount, line items — from a photographed/scanned receipt (`vision/document`), backed by
+  Claude's vision capability. Requires `ANTHROPIC_API_KEY`; reports `VisionUnavailable` honestly
+  otherwise. See `docs/VISION.md`.
 - Track tasks (`kanna task add/list/start/complete/cancel`) and sessions/conversation history.
 - Run scheduled jobs via `kanna scheduler tick` — one-time, interval, and "every N weeks on
   \<weekday\>" schedules, computed with pure, unit-tested date arithmetic.
@@ -59,11 +65,13 @@ files, runs code, queries its own database — rather than just describing steps
 - **Computer control** (mouse/keyboard/screenshot/clipboard/open-application): the `ComputerAgent`
   interface exists (`tools/computer/base.py`); only a `NullComputerAgent` that honestly reports
   unavailability is implemented. No Fedora/Windows/Phone backend exists yet.
-- **Browser automation, vision/OCR, handwriting generation, DOCX/PDF/PPTX generation, non-Python code
-  runtimes beyond what's listed above** (Octave/C#/full Java toolchains depend on binaries that may
-  not be installed on a given machine — the process tool will report that honestly rather than fake
-  output).
-- **Education/assignment workflows, receipt/statement OCR import, multi-device orchestration.**
+- **Browser automation, handwriting generation, DOCX/PDF/PPTX generation, non-Python code runtimes
+  beyond what's listed above** (Octave/C#/full Java toolchains depend on binaries that may not be
+  installed on a given machine — the process tool will report that honestly rather than fake output).
+- **Offline/local OCR** — vision is real but Anthropic-only (no `tesseract`/local provider in this
+  environment); generic multi-page document structure extraction (needed for PDF assignment reading)
+  and image editing/generation are also not built yet — see `docs/VISION.md`.
+- **Education/assignment workflows, bank statement (PDF) import, multi-device orchestration.**
 - **Trusted/pre-approved automations beyond `PreApprovedGate`'s explicit allowlist** — there is no UI
   yet for a user to grant standing approval; that's a policy-configuration feature for a later phase.
 

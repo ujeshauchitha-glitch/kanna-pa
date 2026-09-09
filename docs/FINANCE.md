@@ -85,14 +85,22 @@ currency (never combining currencies) and return `Money` objects the service phr
   a content hash of (amount, currency, date, merchant, description) so re-importing a statement is
   safe.
 - **Export** (`finance.export`): CSV or JSON.
-- **Receipt/statement import**: interfaces only (`finance/imports/interfaces.py`) — needs OCR/
-  document understanding (`vision/`, not yet built). No fake implementation ships. Kanna never asks
-  for bank login credentials for any of this.
+- **Receipt import** (`finance.imports.receipt`, Phase 2): reads a photographed/scanned receipt via
+  `vision.document`, then parses and persists it through the exact same `Money.parse`/
+  `normalize_date`/dedup path as every other entry method — see `docs/VISION.md` for the full pipeline
+  and why letting vision *read* a printed amount doesn't compromise the "LLM never computes a total"
+  rule above. **Statement import** (a PDF bank/card statement, as opposed to a CSV export already
+  covered above) remains interface-only (`finance/imports/interfaces.py`) — it needs multi-page,
+  multi-transaction document structure extraction beyond what single-receipt extraction does. Kanna
+  never asks for bank login credentials for any of this.
 
 ## Deterministic test coverage
 
 `tests/test_money.py`, `test_finance_nlp.py`, `test_finance_transactions.py`,
-`test_finance_budgets.py`, `test_finance_recurring.py`, `test_finance_csv.py` cover parsing/rounding,
-category assignment, date-boundary filtering, monthly/category totals, multi-currency separation,
-budget status, month-end recurrence rollover, and import dedup/error-reporting — see
-`docs/TESTING.md`.
+`test_finance_budgets.py`, `test_finance_recurring.py`, `test_finance_csv.py`,
+`test_finance_dates.py`, `test_finance_receipt_import.py`, `test_finance_receipt_tool.py` cover
+parsing/rounding, category assignment, date-boundary filtering, monthly/category totals,
+multi-currency separation, budget status, month-end recurrence rollover, import dedup/error-
+reporting, and receipt extraction (missing amount, missing/unparseable date, currency fallback,
+duplicate detection, vision-provider failure) — all against `vision.document.fake.FakeDocumentProvider`,
+never the network. See `docs/TESTING.md`.

@@ -16,6 +16,7 @@ from interfaces.cli.commands import document as document_cmd
 from interfaces.cli.commands import finance as finance_cmd
 from interfaces.cli.commands import scheduler as scheduler_cmd
 from interfaces.cli.commands import tasks as tasks_cmd
+from interfaces.cli.commands import trust as trust_cmd
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -44,6 +45,7 @@ def build_parser() -> argparse.ArgumentParser:
     scheduler_cmd.register(subparsers)
     document_cmd.register(subparsers)
     computer_cmd.register(subparsers)
+    trust_cmd.register(subparsers)
 
     return parser
 

@@ -62,6 +62,17 @@ python main.py computer click 100 200
 read page text, screenshot, click, fill) via `browser_*` tools — reachable through the tool
 registry/agent loop today (no `kanna browser ...` CLI subcommand yet). See `docs/BROWSER.md`.
 
+A REVIEW-level action (delete, click, overwrite, ...) normally asks for approval every time. Grant it
+standing approval instead:
+
+```bash
+python main.py trust add computer_open_application --arg name=firefox --note "safe to auto-launch"
+python main.py trust list
+python main.py trust remove 1
+```
+
+See "Approval gates" in `docs/SECURITY.md`.
+
 ## Project layout
 
 ```

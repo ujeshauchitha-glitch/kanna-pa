@@ -79,6 +79,37 @@ def test_document_generate(tmp_path):
     assert third.returncode == 0
 
 
+def test_trust_lifecycle(tmp_path):
+    list_result = _run(["trust", "list"], tmp_path)
+    assert list_result.returncode == 0
+    assert "No standing approval rules" in list_result.stdout
+
+    add_result = _run(
+        ["trust", "add", "computer_click", "--arg", "x=5", "--arg", "y=5", "--note", "safe corner"],
+        tmp_path,
+    )
+    assert add_result.returncode == 0
+    assert "computer_click" in add_result.stdout
+
+    list_result = _run(["trust", "list"], tmp_path)
+    assert list_result.returncode == 0
+    assert "computer_click" in list_result.stdout
+    assert "safe corner" in list_result.stdout
+    rule_id = list_result.stdout.split("]")[0].lstrip("[")
+
+    remove_result = _run(["trust", "remove", rule_id], tmp_path)
+    assert remove_result.returncode == 0
+
+    list_result = _run(["trust", "list"], tmp_path)
+    assert "No standing approval rules" in list_result.stdout
+
+
+def test_trust_add_rejects_unknown_tool(tmp_path):
+    result = _run(["trust", "add", "not_a_real_tool"], tmp_path)
+    assert result.returncode == 1
+    assert "no tool registered" in result.stderr
+
+
 def test_task_lifecycle(tmp_path):
     add_result = _run(["task", "add", "Write report"], tmp_path)
     assert add_result.returncode == 0

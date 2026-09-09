@@ -119,8 +119,11 @@ job) uses to call a tool. It always, in order: validates `args` against `input_s
 `PermissionPolicy.decide()` what to do → asks the `ApprovalGate` if approval is required → calls
 `execute()` (catching any exception, so a buggy tool can never crash the agent) → validates the
 result's `data` against `output_schema` on success → records the call in `execution_log` → publishes
-a `tool.executed` event. See `docs/TOOLS.md` for the tool catalog and `docs/SECURITY.md` for the
-permission model in detail.
+a `tool.executed` event. The gate `bootstrap()` wires in is always a `TrustStoreGate` — it consults
+persisted standing approvals (`kanna trust add/list/remove`) before falling back to `CLIPromptGate`/
+`DenyAllGate`, so a trusted-automation grant applies to every entry point built on `bootstrap()`, not
+just the session that granted it. See `docs/TOOLS.md` for the tool catalog and `docs/SECURITY.md` for
+the permission model in detail.
 
 ## Persistence
 
@@ -129,7 +132,8 @@ databases. Migrations are plain numbered `.sql` files in `core/memory/migrations
 `schema_migrations` table — `Database.migrate()` is idempotent and safe to call on every startup.
 Each concern gets its own table(s) rather than one shared blob: sessions/messages, tasks, plans/
 plan_steps, execution_log, events, finance_* (categories, category_rules, transactions, budgets,
-recurring), schedules/jobs. See the full schema in `core/memory/migrations/0001_initial.sql`.
+recurring), schedules/jobs, trust_rules (standing tool-approval grants). See the full schema in
+`core/memory/migrations/0001_initial.sql` and `0002_trust_rules.sql`.
 
 ## Configuration
 

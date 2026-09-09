@@ -4,6 +4,11 @@ Every tool is registered in `core.tools.registry.ToolRegistry` and reachable exa
 `registry.invoke(name, args, ctx)`. Run `kanna tools list` for the live catalog (name, permission
 level, description) of whatever's registered in your build.
 
+A REVIEW-level tool's approval doesn't have to be asked for every time: `kanna trust add <tool_name>
+[--arg key=value ...]` grants it standing approval, so future matching calls — through `kanna ask`, a
+scheduler-triggered run, anywhere else — auto-approve. See "Approval gates" (`TrustStoreGate`) in
+`docs/SECURITY.md`.
+
 ## Filesystem (`tools/filesystem/`) — all sandboxed
 
 | Tool | Permission | What it does |

@@ -20,7 +20,8 @@ from core.events.bus import EventBus
 from core.llm.anthropic_provider import AnthropicProvider
 from core.logging.setup import setup_logging
 from core.memory.db import Database
-from core.permissions.gate import ApprovalGate, DenyAllGate
+from core.memory.repositories.trust_rules import TrustRuleRepository
+from core.permissions.gate import ApprovalGate, DenyAllGate, TrustStoreGate
 from core.permissions.levels import Decision
 from core.permissions.policy import PermissionPolicy, Rule
 from core.permissions.sandbox import Sandbox
@@ -95,6 +96,7 @@ class Kanna:
     registry: ToolRegistry
     planner: Planner
     logger: logging.Logger
+    trust_rules: TrustRuleRepository
 
     def tool_context(self, *, session_id: str | None = None) -> ToolContext:
         return ToolContext(db=self.db, settings=self.settings, sandbox=self.sandbox,
@@ -119,8 +121,17 @@ def bootstrap(*, config_path: Path | None = None, db_path: Path | str | None = N
 
     sandbox = Sandbox(list(settings.sandbox_roots))
     event_bus = EventBus()
-    registry = build_registry(gate=gate)
+
+    # Every entry point (CLI, agent loop, a future scheduler-triggered
+    # run) shares this wiring, so a standing approval granted once via
+    # `kanna trust add` — persisted in `trust_rules` — applies everywhere,
+    # not just to the session that granted it. `gate` (CLIPromptGate for
+    # an interactive `--yes` session, DenyAllGate otherwise) still decides
+    # anything the trust store doesn't cover.
+    trust_rules = TrustRuleRepository(db)
+    effective_gate = TrustStoreGate(trust_rules, fallback=gate or DenyAllGate())
+    registry = build_registry(gate=effective_gate)
     planner = build_planner(settings, force_rule_based=force_rule_based_planner)
 
     return Kanna(settings=settings, db=db, sandbox=sandbox, event_bus=event_bus,
-                 registry=registry, planner=planner, logger=logger)
+                 registry=registry, planner=planner, logger=logger, trust_rules=trust_rules)

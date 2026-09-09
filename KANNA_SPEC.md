@@ -43,6 +43,9 @@ files, runs code, queries its own database — rather than just describing steps
   the LLM planner revising the step's args based on the specific failure reason before each retry,
   when it can — and report COMPLETE / FAILED (with the real blocker) / BLOCKED (when it can't even
   form a plan).
+- Grant standing, persisted approval for a specific tool (optionally scoped to exact args) via
+  `kanna trust add/list/remove` — a REVIEW-level action matching a granted rule auto-approves from
+  then on, anywhere `bootstrap()` is the entry point, without asking again. See `docs/SECURITY.md`.
 - Read, write (create or, with approval, overwrite), list, search, `mkdir`, inspect, and delete files
   — all sandboxed to configured roots (defaults: the current working directory + Kanna's own home).
 - Run allowlisted interpreters/compilers (`python3`, `gcc`/`g++`, `rustc`, `javac`/`java`, `node`,
@@ -104,8 +107,6 @@ files, runs code, queries its own database — rather than just describing steps
   content-writing step; that's a job for an LLM *before* handing `documents` a `Document`) — see
   `docs/DOCUMENTS.md`.
 - **Education/assignment workflows, multi-device orchestration.**
-- **Trusted/pre-approved automations beyond `PreApprovedGate`'s explicit allowlist** — there is no UI
-  yet for a user to grant standing approval; that's a policy-configuration feature for a later phase.
 
 See `docs/ROADMAP.md` for what's planned next and in what order.
 

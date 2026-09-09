@@ -41,10 +41,10 @@ on every push; locally, without any browser installed, it skips cleanly.
 `tests/test_browser_tools.py` covers the tool layer via `tools.browser.fake.FakeBrowserAgent` instead,
 so that coverage never depends on a real browser.
 
-As of this writing: **311 tests when a display is available (299 + 12 skipped without one), all
+As of this writing: **327 tests when a display is available (315 + 12 skipped without one), all
 passing**, covering every Phase 1 subsystem plus Phase 2 vision (receipts, statements, and generic
-document structure), document generation, computer control, browser automation, and LLM-driven
-step correction.
+document structure), document generation, computer control, browser automation, LLM-driven step
+correction, and trusted-automation configuration.
 
 ## Layout
 
@@ -53,7 +53,7 @@ step correction.
 | `test_schema.py` | `Schema` validation (types, enum, bounds, pattern, nested object/array) + JSON-Schema export |
 | `test_registry.py` | Tool registration, invocation pipeline (validate → permission → execute → validate → log), exception containment, output-schema enforcement |
 | `test_tool_result.py` | `ToolResult` construction helpers |
-| `test_permissions.py` | `PermissionPolicy` default decisions per level, rule overrides, both `ApprovalGate` implementations |
+| `test_permissions.py` | `PermissionPolicy` default decisions per level, rule overrides, `DenyAllGate`/`PreApprovedGate` |
 | `test_sandbox.py` | Path traversal, absolute-path escape, symlink escape, multi-root resolution |
 | `test_db.py` | Migration application + idempotency, foreign-key enforcement, file-backed persistence across connections |
 | `test_repositories.py` | Session/task/execution-log repository CRUD |
@@ -90,7 +90,8 @@ step correction.
 | `test_computer_tools.py` | All 11 `computer_*` tools via `FakeComputerAgent`: argument passing, permission levels, `CapabilityUnavailable`/`ValueError` → `ToolResult.fail` translation, default-agent fallback |
 | `test_browser_playwright.py` | The real `PlaywrightBrowserAgent` against a headless Chromium instance (see above) — navigate/get_text/screenshot validity, a real click-mutates-the-DOM round trip, fill + read-back, go_back, current_url, honest failures for a missing selector or a missing `playwright` package |
 | `test_browser_tools.py` | All 6 `browser_*` tools via `FakeBrowserAgent`: argument passing, resulting-observation surfacing, permission levels, `BrowserUnavailable`/`BrowserActionFailed` → `ToolResult.fail` translation, default-agent fallback |
-| `test_cli.py` | Subprocess smoke tests for every top-level command |
+| `test_trust.py` | `rule_matches` as a pure function (wrong tool, empty-pattern-matches-any, per-key matching, missing key, extra call args ignored), `TrustRuleRepository` CRUD (the audit trail itself), `TrustStoreGate` (a matching rule approves without consulting the fallback, no match falls through, no rules at all delegates entirely), and one `bootstrap()` integration test proving a granted rule actually changes what a real `ToolRegistry.invoke()` does |
+| `test_cli.py` | Subprocess smoke tests for every top-level command, including the `trust add`/`list`/`remove` lifecycle and rejecting an unknown tool name |
 
 ## Fixtures (`tests/conftest.py`)
 

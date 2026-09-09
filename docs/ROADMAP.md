@@ -14,9 +14,12 @@ statement reading, extending `vision/document/` beyond single-receipt extraction
 headless browser — see `docs/BROWSER.md`), **generic document structure extraction**
 (`extract_structure()`, extending `vision/document/` past the fixed receipt/statement-row shapes to
 arbitrary sections/headings/paragraphs/tables, exposed as `vision_extract_structure` — see
-`docs/VISION.md`), and **LLM-driven correction** (`AgentLoop._run_step` now asks the planner to
+`docs/VISION.md`), **LLM-driven correction** (`AgentLoop._run_step` now asks the planner to
 revise a failing step's args based on the specific failure reason before retrying, when the planner
-supports it — see `docs/ARCHITECTURE.md`'s agent-loop section). Everything below is not yet built.
+supports it — see `docs/ARCHITECTURE.md`'s agent-loop section), and **trusted-automation
+configuration** (`TrustStoreGate`, `kanna trust add/list/remove` — persisted standing approval for
+specific tool+argument patterns, shared across every entry point built on `bootstrap()` — see
+`docs/SECURITY.md`). Everything below is not yet built.
 
 ## Vision (done, Phase 2) — what's left in this area
 
@@ -95,25 +98,33 @@ supports it — see `docs/ARCHITECTURE.md`'s agent-loop section). Everything bel
 - `RuleBasedPlanner` has no LLM to ask, so it still retries identically — this only helps runs using
   `LLMPlanner`.
 
+## Trusted-automation configuration (done, this pass) — what's left in this area
+
+- Matching is exact-value-per-key only — no wildcards, ranges, or path-prefix matching (e.g. "trust
+  `fs_delete` under `~/scratch/` specifically" isn't expressible as one rule yet; it needs one rule per
+  exact path).
+- No expiry, scoping to a session/device, or interactive "approve once, and offer to remember this"
+  flow — a grant is permanent until `kanna trust remove`.
+- No `kanna trust` output redaction — an args pattern containing something sensitive would show up in
+  `kanna trust list` verbatim (unlikely in practice, since REVIEW-level tools' args are file paths,
+  selectors, coordinates, and app names, not secrets, but not defended against either).
+
 ## Next candidates, roughly in order of leverage
 
-1. **Trusted-automation configuration.** `PreApprovedGate` already supports it structurally; needs a
-   config surface (CLI or file) for the user to grant standing approval to specific tool+argument
-   patterns, plus an audit trail of what's been pre-approved. More valuable now that `computer_click`/
-   `computer_type_text`/`browser_click`/`browser_fill` exist and are REVIEW-gated by default.
-2. **Scheduler daemon / OS integration.** `kanna scheduler tick` works today invoked manually or via
+1. **Scheduler daemon / OS integration.** `kanna scheduler tick` works today invoked manually or via
    cron/systemd-timer; a longer-running daemon mode (or documented systemd unit) makes it actually
-   "set and forget."
-3. **Runtimes beyond Python.** C/C++/Rust/Java toolchains are already reachable through
+   "set and forget" — trusted-automation rules (done, this pass) are what make that safe to leave
+   unattended for REVIEW-level actions.
+2. **Runtimes beyond Python.** C/C++/Rust/Java toolchains are already reachable through
    `process_run`'s allowlist when installed; what's missing is per-language project scaffolding
    (build file generation, dependency resolution) if Kanna should set those up itself rather than
    just compile/run what's already there.
-4. **Education/assignment workflow, NeoColab integration, handwriting rendering.** Document generation
+3. **Education/assignment workflow, NeoColab integration, handwriting rendering.** Document generation
    and generic document structure extraction are both done now, so the pieces exist — an assignment
    workflow is essentially "read the assignment PDF via `vision_extract_structure`, do the work, write
    it up via `documents`." What's missing is the workflow itself: turning an extracted
    `DocumentStructure` into actual work items, and a `documents.model.Document` to render the result.
-5. **Additional device backends** (Windows, Phone) and the capability-based router across them, now
+4. **Additional device backends** (Windows, Phone) and the capability-based router across them, now
    that `FedoraAgent` has validated the `ComputerAgent` interface in practice.
 
 ## Explicitly deferred, no strong opinion yet

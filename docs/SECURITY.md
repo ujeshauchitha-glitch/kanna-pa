@@ -28,20 +28,40 @@ because creating a new file is low-risk; an explicit `overwrite=True` on any of 
 
 ## Approval gates
 
-`core.permissions.gate.ApprovalGate` is a `Protocol`. Three implementations ship:
+`core.permissions.gate.ApprovalGate` is a `Protocol`. Four implementations ship:
 
-- `DenyAllGate` — approves nothing. **This is the default** for `bootstrap()` unless a gate is
-  explicitly passed in, so an unattended/automated run (a scheduled job, a test) never silently
-  performs a REVIEW-level action.
-- `CLIPromptGate` — prompts on stdin/stdout (`kanna --yes ...` wires this in).
-- `PreApprovedGate` — approves only tool names in an explicit allowlist supplied by the caller (e.g.
-  a scheduled workflow that's been configured to trust exactly `finance_add_transaction` and nothing
-  else). This is the seam for future "trusted automations" — nothing currently constructs one outside
-  tests.
+- `DenyAllGate` — approves nothing. **This is the ultimate fallback** — `bootstrap()` always uses it
+  (wrapped, see `TrustStoreGate` below) unless a different fallback gate is explicitly passed in, so
+  an unattended/automated run never silently performs a REVIEW-level action it wasn't specifically
+  granted.
+- `CLIPromptGate` — prompts on stdin/stdout (`kanna --yes ...` wires this in as the fallback).
+- `PreApprovedGate` — approves only tool names in an explicit, in-memory allowlist supplied by the
+  caller. No persistence, no args matching — the lightweight version for a caller that constructs its
+  own registry directly (tests use this).
+- `TrustStoreGate` — **trusted automation**, persisted. Consults `TrustRuleRepository` (the
+  `trust_rules` table) for a standing approval matching the call's tool name and, optionally, specific
+  args; if one matches, the action runs without asking. If none matches, it falls through to another
+  gate (`DenyAllGate` or `CLIPromptGate`, per above). `bootstrap()` always wires this in as the
+  registry's actual gate — every entry point (an interactive `kanna ask`, a scheduler-triggered run,
+  anything else built on `bootstrap()`) shares the same trust store, so a rule granted once applies
+  everywhere.
+
+A rule is granted with `kanna trust add <tool_name> [--arg key=value ...] [--note "..."]` — an empty
+pattern trusts every call to that tool; one or more `--arg` entries scope the grant to calls where
+those specific args match exactly (e.g. `kanna trust add computer_open_application --arg name=firefox`
+trusts opening Firefox specifically, not every application). `kanna trust list` shows every granted
+rule with its id, scope, note, and grant time; `kanna trust remove <id>` revokes one. Because every row
+records *when* and, if given, *why* (`created_at`/`note`) and is never overwritten in place (only
+added or deleted), the `trust_rules` table doubles as the audit trail of what's been pre-approved —
+not just a runtime allowlist that forgets its own history. See `core/permissions/gate.py`,
+`core/permissions/trust.py`, and `core/memory/repositories/trust_rules.py` for the implementation.
 
 **No code path lets a REVIEW-level action run without a gate saying yes.** `ToolRegistry.invoke()`
 always calls `PermissionPolicy.decide()` and, if it returns `REQUIRE_APPROVAL`, always calls
-`gate.approve()` before executing — there is no bypass.
+`gate.approve()` before executing — there is no bypass. A standing trust rule is still just another
+gate decision, made the same way, logged in `execution_log` like any other invocation, and it only
+ever *adds* a way for a specific, user-named action to skip asking — it never lowers what fallback
+gate would otherwise be used for anything it doesn't cover.
 
 ## Filesystem sandboxing
 

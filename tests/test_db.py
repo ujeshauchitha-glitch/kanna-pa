@@ -10,11 +10,12 @@ from core.memory.db import Database
 def test_migrate_creates_tables():
     db = Database(":memory:")
     applied = db.migrate()
-    assert applied == [1]
+    assert applied == [1, 2]
     tables = {r["name"] for r in db.query("SELECT name FROM sqlite_master WHERE type='table'")}
     assert "finance_transactions" in tables
     assert "sessions" in tables
     assert "plan_steps" in tables
+    assert "trust_rules" in tables
 
 
 def test_migrate_is_idempotent():

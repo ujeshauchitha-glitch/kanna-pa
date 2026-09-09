@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
+from automation.scheduler.daemon import SchedulerDaemon, install_signal_handlers
 from automation.scheduler.schedule import Schedule, compute_next_run, is_due
 from automation.scheduler.scheduler import Scheduler
 from automation.scheduler.store import SchedulerStore
@@ -89,3 +90,73 @@ def test_scheduler_tick_captures_executor_failure(db):
     scheduler = Scheduler(store, on_due=_boom)
     outcomes = scheduler.tick(now=datetime(2024, 6, 1, 0, 0, tzinfo=None))
     assert outcomes[0]["status"] == "failed"
+
+
+# -- SchedulerDaemon: the "set and forget" run loop --
+
+def test_daemon_run_n_ticks_calls_tick_the_right_number_of_times(db):
+    store = SchedulerStore(db)
+    tick_count = {"n": 0}
+    scheduler = Scheduler(store, on_due=lambda s: None)
+    # Patch tick() to just count calls — this test is about the daemon's
+    # loop mechanics, not scheduler.tick()'s own behavior (covered above).
+    scheduler.tick = lambda: (tick_count.__setitem__("n", tick_count["n"] + 1), [])[1]
+
+    sleeps: list[float] = []
+    daemon = SchedulerDaemon(scheduler, interval_seconds=5, sleep=sleeps.append)
+    daemon.run_n_ticks(3)
+
+    assert tick_count["n"] == 3
+    # Sleeps between ticks, not after the last one.
+    assert sleeps == [5, 5]
+
+
+def test_daemon_run_n_ticks_reports_each_ticks_outcomes_via_callback(db):
+    store = SchedulerStore(db)
+    # Far in the past, so it's already due whenever this test actually runs
+    # — no need to fake `now` to get a deterministic first-tick result.
+    store.create("reminder", "once", {"run_at": "2000-01-01T00:00:00"})
+    scheduler = Scheduler(store, on_due=lambda s: {"ok": True})
+
+    reported: list[list[dict]] = []
+    daemon = SchedulerDaemon(scheduler, sleep=lambda _: None, on_tick=reported.append)
+    daemon.run_n_ticks(2)
+
+    assert len(reported) == 2
+    assert reported[0][0]["status"] == "succeeded"  # first tick: the schedule was due
+    assert reported[1] == []  # second tick: 'once' already fired, nothing due
+
+
+def test_daemon_run_forever_stops_when_stop_is_called(db):
+    store = SchedulerStore(db)
+    scheduler = Scheduler(store, on_due=lambda s: None)
+
+    calls = {"ticks": 0}
+    daemon = SchedulerDaemon(scheduler, sleep=lambda _: None)
+
+    def _stop_after_three_ticks(outcomes):
+        calls["ticks"] += 1
+        if calls["ticks"] >= 3:
+            daemon.stop()
+
+    daemon._on_tick = _stop_after_three_ticks
+    daemon.run_forever()
+
+    assert calls["ticks"] == 3
+
+
+def test_install_signal_handlers_sigint_calls_stop(db):
+    import signal
+
+    store = SchedulerStore(db)
+    scheduler = Scheduler(store, on_due=lambda s: None)
+    daemon = SchedulerDaemon(scheduler)
+    install_signal_handlers(daemon)
+
+    assert daemon._stop is False
+    os_kill_self_with_sigint = signal.getsignal(signal.SIGINT)
+    os_kill_self_with_sigint(signal.SIGINT, None)  # simulate delivery without actually raising
+    assert daemon._stop is True
+
+    # Restore the default handler so this test doesn't leak state to others.
+    signal.signal(signal.SIGINT, signal.default_int_handler)

@@ -75,8 +75,12 @@ files, runs code, queries its own database — rather than just describing steps
   Reports `BrowserUnavailable` honestly if Playwright or a browser binary isn't installed. See
   `docs/BROWSER.md`.
 - Track tasks (`kanna task add/list/start/complete/cancel`) and sessions/conversation history.
-- Run scheduled jobs via `kanna scheduler tick` — one-time, interval, and "every N weeks on
-  \<weekday\>" schedules, computed with pure, unit-tested date arithmetic.
+- Create and run scheduled jobs — one-time, interval, and "every N weeks on \<weekday\>" schedules,
+  computed with pure, unit-tested date arithmetic (`kanna scheduler add/list/remove`) — invoked
+  either once via `kanna scheduler tick` (for cron/systemd-timer) or continuously via
+  `kanna scheduler daemon` (a real run-forever loop with clean SIGINT/SIGTERM shutdown). Each job's
+  request runs through the same agent loop, verification, and trust-store approval an interactive
+  request would. See `docs/SCHEDULER.md`.
 - Persist everything to a local SQLite database with a real, idempotent migration system.
 
 ## What Kanna cannot do yet

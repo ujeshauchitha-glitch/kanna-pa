@@ -19,7 +19,10 @@ revise a failing step's args based on the specific failure reason before retryin
 supports it — see `docs/ARCHITECTURE.md`'s agent-loop section), and **trusted-automation
 configuration** (`TrustStoreGate`, `kanna trust add/list/remove` — persisted standing approval for
 specific tool+argument patterns, shared across every entry point built on `bootstrap()` — see
-`docs/SECURITY.md`). Everything below is not yet built.
+`docs/SECURITY.md`), and a **scheduler daemon + `kanna scheduler add`** (`SchedulerDaemon` — a real
+run-forever/bounded-ticks loop around `Scheduler.tick()`, a documented systemd unit — plus the CLI
+command that was actually missing to create a schedule at all in Phase 1 — see `docs/SCHEDULER.md`).
+Everything below is not yet built.
 
 ## Vision (done, Phase 2) — what's left in this area
 
@@ -109,22 +112,28 @@ specific tool+argument patterns, shared across every entry point built on `boots
   `kanna trust list` verbatim (unlikely in practice, since REVIEW-level tools' args are file paths,
   selectors, coordinates, and app names, not secrets, but not defended against either).
 
+## Scheduler daemon / OS integration (done, this pass) — what's left in this area
+
+- One process per daemon instance — no distributed/multi-worker coordination.
+- The systemd unit in `docs/SCHEDULER.md` is documentation to copy and adapt, not something any
+  Kanna command installs.
+- `kanna scheduler add` doesn't validate an ISO date/time string's *syntax* up front — a malformed
+  `--run-at`/`--anchor-date` fails later as a Python exception rather than a clean CLI error.
+- No pause/resume — `remove` is a one-way deactivation; there's no CLI command to reactivate a
+  removed schedule.
+
 ## Next candidates, roughly in order of leverage
 
-1. **Scheduler daemon / OS integration.** `kanna scheduler tick` works today invoked manually or via
-   cron/systemd-timer; a longer-running daemon mode (or documented systemd unit) makes it actually
-   "set and forget" — trusted-automation rules (done, this pass) are what make that safe to leave
-   unattended for REVIEW-level actions.
-2. **Runtimes beyond Python.** C/C++/Rust/Java toolchains are already reachable through
+1. **Runtimes beyond Python.** C/C++/Rust/Java toolchains are already reachable through
    `process_run`'s allowlist when installed; what's missing is per-language project scaffolding
    (build file generation, dependency resolution) if Kanna should set those up itself rather than
    just compile/run what's already there.
-3. **Education/assignment workflow, NeoColab integration, handwriting rendering.** Document generation
+2. **Education/assignment workflow, NeoColab integration, handwriting rendering.** Document generation
    and generic document structure extraction are both done now, so the pieces exist — an assignment
    workflow is essentially "read the assignment PDF via `vision_extract_structure`, do the work, write
    it up via `documents`." What's missing is the workflow itself: turning an extracted
    `DocumentStructure` into actual work items, and a `documents.model.Document` to render the result.
-4. **Additional device backends** (Windows, Phone) and the capability-based router across them, now
+3. **Additional device backends** (Windows, Phone) and the capability-based router across them, now
    that `FedoraAgent` has validated the `ComputerAgent` interface in practice.
 
 ## Explicitly deferred, no strong opinion yet

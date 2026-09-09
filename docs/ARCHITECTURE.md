@@ -53,11 +53,12 @@ documents/      model.py (shared Document/Section/TableData content model, forma
 
 automation/
   scheduler/    Schedule (once/interval/weekly), pure due-time computation, SchedulerStore
-                (SQLite), Scheduler.tick()
+                (SQLite), Scheduler.tick(), SchedulerDaemon (a real run-forever/bounded-ticks
+                loop around tick() — see docs/SCHEDULER.md)
 
 interfaces/
   cli/          argparse-based CLI; commands/ holds the larger per-area subcommand modules
-                (finance, task, scheduler, document, computer); app.py holds the smaller ones
+                (finance, task, scheduler, document, computer, trust); app.py holds the smaller ones
                 (init, ask, tools, db)
 
 main.py         `python main.py <command> ...`

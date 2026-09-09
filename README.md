@@ -73,6 +73,18 @@ python main.py trust remove 1
 
 See "Approval gates" in `docs/SECURITY.md`.
 
+Create and run scheduled jobs — once via cron/systemd-timer, or continuously with a real daemon:
+
+```bash
+python main.py scheduler add "morning briefing" "How much did I spend on food this month?" \
+    --kind weekly --weekday 0 --time 08:00 --anchor-date 2024-01-01
+python main.py scheduler list
+python main.py scheduler tick              # run whatever's due, once, and exit
+python main.py scheduler daemon            # run forever, checking every 60s (Ctrl-C to stop)
+```
+
+See `docs/SCHEDULER.md`, including a documented systemd unit for running the daemon as a service.
+
 ## Project layout
 
 ```
@@ -83,11 +95,11 @@ tools/         filesystem, process execution, computer control (FedoraAgent — 
 finance/       transactions, categories, budgets, recurring expenses, import/export, analytics
 vision/        OCR + receipt/statement structure extraction, Anthropic-vision-backed
 documents/     DOCX/PPTX/PDF generation from one shared content model, fully offline
-automation/    scheduler (once/interval/weekly schedules)
+automation/    scheduler (once/interval/weekly schedules) + a real daemon mode
 interfaces/    CLI
 tests/         pytest suite, one file per subsystem
-docs/          architecture, tools, finance, vision, documents, devices, browser, security, testing,
-               roadmap
+docs/          architecture, tools, finance, vision, documents, devices, browser, scheduler, security,
+               testing, roadmap
 ```
 
 See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the full picture.

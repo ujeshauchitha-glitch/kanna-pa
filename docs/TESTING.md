@@ -41,10 +41,10 @@ on every push; locally, without any browser installed, it skips cleanly.
 `tests/test_browser_tools.py` covers the tool layer via `tools.browser.fake.FakeBrowserAgent` instead,
 so that coverage never depends on a real browser.
 
-As of this writing: **327 tests when a display is available (315 + 12 skipped without one), all
+As of this writing: **334 tests when a display is available (322 + 12 skipped without one), all
 passing**, covering every Phase 1 subsystem plus Phase 2 vision (receipts, statements, and generic
 document structure), document generation, computer control, browser automation, LLM-driven step
-correction, and trusted-automation configuration.
+correction, trusted-automation configuration, and the scheduler daemon.
 
 ## Layout
 
@@ -77,7 +77,7 @@ correction, and trusted-automation configuration.
 | `test_finance_statement_tool.py` | `finance_import_statement` tool: partial-success reporting (unlike the all-or-nothing receipt tool), all-credits statement still a successful call with nothing created, sandboxing, mime-type override |
 | `test_planner.py` | Rule-based intent recognition + failure, LLM planner validation/fallback (via `FakeProvider`), `LLMPlanner.revise_step` (corrected args, prompt content, unknown tool/no-JSON/no-args-key/invalid-revised-args/LLM-unavailable all raising `PlanningError`, `RuleBasedPlanner` correctly lacking the capability) |
 | `test_agent_loop.py` | Happy path, transient-failure-then-correction, permanent failure reporting FAILED (never a fabricated COMPLETE), unplannable request reporting BLOCKED, plan/step persistence, LLM-driven correction actually using the planner's revised args (not a blind retry), falling back to identical retry when revision fails or the planner has no `revise_step` capability |
-| `test_scheduler.py` | Pure due-time computation for all three schedule kinds (including the spec's "every two weeks on Tuesday" example), `Scheduler.tick()` execution/skip/failure recording |
+| `test_scheduler.py` | Pure due-time computation for all three schedule kinds (including the spec's "every two weeks on Tuesday" example), `Scheduler.tick()` execution/skip/failure recording, `SchedulerDaemon` (bounded `run_n_ticks` sleeps between-not-after ticks, `run_forever` actually stops on `stop()`, `install_signal_handlers` wires SIGINT to a real stop) |
 | `test_documents_model.py` | `build_document()` — the pure "args dict → `Document`" conversion (full content, empty-string-to-`None`, default heading level) |
 | `test_documents_docx.py` | `render_docx` end-to-end, read back with `python-docx` to assert real structure (styles, table cells), not just file existence |
 | `test_documents_pptx.py` | `render_pptx` end-to-end, incl. the table-only-section-must-keep-its-heading regression (see `docs/DOCUMENTS.md`) |
@@ -91,7 +91,7 @@ correction, and trusted-automation configuration.
 | `test_browser_playwright.py` | The real `PlaywrightBrowserAgent` against a headless Chromium instance (see above) — navigate/get_text/screenshot validity, a real click-mutates-the-DOM round trip, fill + read-back, go_back, current_url, honest failures for a missing selector or a missing `playwright` package |
 | `test_browser_tools.py` | All 6 `browser_*` tools via `FakeBrowserAgent`: argument passing, resulting-observation surfacing, permission levels, `BrowserUnavailable`/`BrowserActionFailed` → `ToolResult.fail` translation, default-agent fallback |
 | `test_trust.py` | `rule_matches` as a pure function (wrong tool, empty-pattern-matches-any, per-key matching, missing key, extra call args ignored), `TrustRuleRepository` CRUD (the audit trail itself), `TrustStoreGate` (a matching rule approves without consulting the fallback, no match falls through, no rules at all delegates entirely), and one `bootstrap()` integration test proving a granted rule actually changes what a real `ToolRegistry.invoke()` does |
-| `test_cli.py` | Subprocess smoke tests for every top-level command, including the `trust add`/`list`/`remove` lifecycle and rejecting an unknown tool name |
+| `test_cli.py` | Subprocess smoke tests for every top-level command, including the `trust add`/`list`/`remove` lifecycle, rejecting an unknown tool name, the `scheduler add`/`list`/`tick`/`remove` lifecycle, rejecting a schedule missing a required field, and `scheduler daemon --ticks` |
 
 ## Fixtures (`tests/conftest.py`)
 

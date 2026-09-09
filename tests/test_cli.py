@@ -110,6 +110,45 @@ def test_trust_add_rejects_unknown_tool(tmp_path):
     assert "no tool registered" in result.stderr
 
 
+def test_scheduler_add_list_and_tick(tmp_path):
+    add_result = _run(
+        ["scheduler", "add", "daily check-in", "list the files in ./docs",
+         "--kind", "once", "--run-at", "2000-01-01T00:00:00"],  # already due whenever this runs
+        tmp_path,
+    )
+    assert add_result.returncode == 0
+    assert "daily check-in" in add_result.stdout
+
+    list_result = _run(["scheduler", "list"], tmp_path)
+    assert list_result.returncode == 0
+    assert "daily check-in" in list_result.stdout
+    line = next(ln for ln in list_result.stdout.splitlines() if "daily check-in" in ln)
+    schedule_id = line.split("]")[1].split()[0]  # "[active  ] <id>  <name>  ..."
+
+    tick_result = _run(["scheduler", "tick"], tmp_path)
+    assert tick_result.returncode == 0
+    assert "daily check-in" in tick_result.stdout
+
+    remove_result = _run(["scheduler", "remove", schedule_id], tmp_path)
+    assert remove_result.returncode == 0
+    assert "Deactivated" in remove_result.stdout
+
+
+def test_scheduler_add_rejects_missing_required_fields(tmp_path):
+    result = _run(["scheduler", "add", "bad", "do something", "--kind", "once"], tmp_path)
+    assert result.returncode == 1
+    assert "--run-at" in result.stderr
+
+
+def test_scheduler_daemon_bounded_ticks(tmp_path):
+    _run(["scheduler", "add", "one-off", "list the files in ./docs",
+          "--kind", "once", "--run-at", "2000-01-01T00:00:00"], tmp_path)
+
+    result = _run(["scheduler", "daemon", "--ticks", "2", "--interval-seconds", "0"], tmp_path)
+    assert result.returncode == 0
+    assert "one-off" in result.stdout
+
+
 def test_task_lifecycle(tmp_path):
     add_result = _run(["task", "add", "Write report"], tmp_path)
     assert add_result.returncode == 0

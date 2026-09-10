@@ -68,7 +68,8 @@ files, runs code, queries its own database — rather than just describing steps
   otherwise. See `docs/VISION.md`.
 - Generate DOCX, PPTX, and PDF files from structured content (title + sections with headings,
   paragraphs, bullets, tables) via `python-docx`/`python-pptx`/`reportlab` — fully offline,
-  deterministic, no LLM or network involved in rendering itself. See `docs/DOCUMENTS.md`.
+  deterministic, no LLM or network involved in rendering itself — and convert an existing DOCX/PPTX
+  file to PDF via LibreOffice (`soffice --headless`), when installed. See `docs/DOCUMENTS.md`.
 - Control the desktop on a Linux machine with a live X11 session: screenshot, mouse, keyboard,
   clipboard, open/close applications (`tools/computer/fedora.py::FedoraAgent`, `xdotool`/`scrot`/
   `xclip`-backed). Falls back to `NullComputerAgent` (honest `CapabilityUnavailable`, never a fake
@@ -113,9 +114,10 @@ files, runs code, queries its own database — rather than just describing steps
 - **Income/credit tracking** — statement import only records debit (spend) rows; credit rows (deposits,
   refunds, salary) are reported, not imported, since `Transaction` has no signed-amount or income/
   expense representation — see `docs/FINANCE.md`.
-- **Reading or editing existing DOCX/PPTX/PDF files, DOCX/PPTX→PDF conversion** — generation only, and
-  only from structured content built by the caller (no "turn this rough idea into a full report"
-  content-writing step; that's a job for an LLM *before* handing `documents` a `Document`) — see
+- **Reading or editing existing DOCX/PPTX/PDF files** — generation, and DOCX/PPTX→PDF conversion, only.
+  Generation is only from structured content built by the caller (no "turn this rough idea into a full
+  report" content-writing step; that's a job for an LLM *before* handing `documents` a `Document`); PDF
+  conversion depends on LibreOffice being installed, with no fallback if it isn't — see
   `docs/DOCUMENTS.md`.
 - **Education/assignment workflows, multi-device orchestration.**
 

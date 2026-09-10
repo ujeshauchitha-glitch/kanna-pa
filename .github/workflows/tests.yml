@@ -17,7 +17,12 @@ jobs:
       # docs/DEVICES.md. xterm + x11-apps (xclock) are test fixtures only
       # (something for click/type/open/close tests to interact with), not
       # a FedoraAgent runtime dependency.
+      # libreoffice-writer/-impress add the actual Writer/Impress import
+      # filters on top of libreoffice-core — without them 'soffice
+      # --convert-to pdf' fails on every input ("source file could not be
+      # loaded"), even a plain text file. See docs/DOCUMENTS.md.
       - run: sudo apt-get update && sudo apt-get install -y xvfb xdotool scrot xclip xterm x11-apps
+          libreoffice-writer libreoffice-impress
       - run: pip install -e ".[dev]"
       # Real Chromium binary + its OS deps, so tests/test_browser_playwright.py
       # exercises PlaywrightBrowserAgent for real instead of skipping — see

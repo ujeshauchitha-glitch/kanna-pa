@@ -50,8 +50,10 @@ vision/
 
 documents/      model.py (shared Document/Section/TableData content model, format-independent),
                 docx_writer.py / pptx_writer.py / pdf_writer.py (one real renderer each, offline —
-                python-docx / python-pptx / reportlab), tools.py (registry-exposed
-                document_generate_* tools, sandboxed + overwrite-gated like fs_write_file)
+                python-docx / python-pptx / reportlab), convert.py (DOCX/PPTX -> PDF via LibreOffice
+                headless — real layout fidelity, needs soffice installed), tools.py
+                (registry-exposed document_generate_*/document_convert_to_pdf tools, sandboxed +
+                overwrite-gated like fs_write_file)
 
 automation/
   scheduler/    Schedule (once/interval/weekly), pure due-time computation, SchedulerStore

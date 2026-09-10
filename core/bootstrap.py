@@ -44,7 +44,7 @@ from vision import tools as vision_tools
 # low-risk; only an explicit overwrite=True stays REVIEW-gated.
 _CREATE_OR_OVERWRITE_TOOLS = frozenset({
     "fs_write_file", "document_generate_docx", "document_generate_pptx", "document_generate_pdf",
-    "project_scaffold",
+    "document_convert_to_pdf", "project_scaffold",
 })
 
 

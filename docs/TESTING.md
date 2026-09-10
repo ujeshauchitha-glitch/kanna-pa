@@ -15,6 +15,9 @@ tests (`test_documents_*.py`) do exercise the real `python-docx`/`python-pptx`/`
 (they're pure offline/deterministic — no network either way) but use `pytest.importorskip` so the
 suite degrades to skipping them, rather than failing, if `kanna[documents]` isn't installed; it is
 included in the `dev` extra, so `pip install -e ".[dev]"` runs the full suite.
+`test_documents_convert.py`'s real-conversion tests separately `skipif` on no LibreOffice binary
+being on PATH — install `libreoffice-writer`/`libreoffice-impress` (not just `libreoffice-core`, which
+alone can't actually convert anything — see `docs/DOCUMENTS.md`) to run those for real.
 
 `tests/test_fedora_agent.py` exercises the real `FedoraAgent` against a live X11 session — it needs
 `DISPLAY` plus `xdotool`/`scrot`/`xclip`, none of which exist by default in most environments, so the
@@ -41,10 +44,11 @@ on every push; locally, without any browser installed, it skips cleanly.
 `tests/test_browser_tools.py` covers the tool layer via `tools.browser.fake.FakeBrowserAgent` instead,
 so that coverage never depends on a real browser.
 
-As of this writing: **351 tests when a display is available (339 + 12 skipped without one), all
+As of this writing: **367 tests when a display is available (355 + 12 skipped without one), all
 passing**, covering every Phase 1 subsystem plus Phase 2 vision (receipts, statements, and generic
-document structure), document generation, computer control, browser automation, LLM-driven step
-correction, trusted-automation configuration, the scheduler daemon, and C/C++/Java project scaffolding.
+document structure), document generation and DOCX/PPTX→PDF conversion, computer control, browser
+automation, LLM-driven step correction, trusted-automation configuration, the scheduler daemon, and
+C/C++/Java project scaffolding.
 
 ## Layout
 
@@ -82,7 +86,8 @@ correction, trusted-automation configuration, the scheduler daemon, and C/C++/Ja
 | `test_documents_docx.py` | `render_docx` end-to-end, read back with `python-docx` to assert real structure (styles, table cells), not just file existence |
 | `test_documents_pptx.py` | `render_pptx` end-to-end, incl. the table-only-section-must-keep-its-heading regression (see `docs/DOCUMENTS.md`) |
 | `test_documents_pdf.py` | `render_pdf` end-to-end (valid `%PDF-` header, non-trivial size), incl. a regression test for XML-escaping special characters and for out-of-range heading levels |
-| `test_documents_tools.py` | All three `document_generate_*` tools: creation, sandbox rejection, overwrite protection, directory-path rejection |
+| `test_documents_tools.py` | All three `document_generate_*` tools: creation, sandbox rejection, overwrite protection, directory-path rejection; `document_convert_to_pdf`'s tool layer via a monkeypatched `convert_to_pdf` (no LibreOffice needed) |
+| `test_documents_convert.py` | The real `convert_to_pdf()`: real DOCX/PPTX converted by real `soffice`, output landing at the exact requested `dest` (not soffice's own `<stem>.pdf` naming), missing source, timeout, and a `shutil.which`-monkeypatched "no binary" case that runs regardless of whether LibreOffice is installed |
 | `test_scaffold_tools.py` | `project_scaffold` tool layer: creation per language, `project_name` defaulting vs. override, overwrite refusal/acceptance, sandbox rejection, non-directory destination, unsupported language, permission level |
 | `test_scaffold_build.py` | Every generated skeleton built and run for real (`make`/`make run` for C/C++, `javac`+`java` for Java), `make clean` actually removing the binary, and an end-to-end `project_scaffold` → `process_run` (`make`) proof — skipped per-language if that compiler/`make` isn't installed |
 | `test_bootstrap.py` | `build_registry()` includes every subsystem's tools; `default_policy()`'s create-vs-overwrite rule, generalized to cover `fs_write_file` and all three `document_generate_*` tools |

@@ -77,18 +77,21 @@ cleanly with a `VisionUnavailable`-derived error rather than crashing or fabrica
 ## Documents (`documents/tools.py`)
 
 Sandboxed and overwrite-gated exactly like `fs_write_file` (see above) — creating a new file is
-auto-allowed, `overwrite=true` requires approval. Fully offline; no network, no LLM, no API key at
-render time. See `docs/DOCUMENTS.md`.
+auto-allowed, `overwrite=true` requires approval. The three `generate` tools are fully offline; no
+network, no LLM, no API key at render time. See `docs/DOCUMENTS.md`.
 
 | Tool | What it does |
 |---|---|
 | `document_generate_docx` | Generate a Word document from structured title/sections content |
 | `document_generate_pptx` | Generate a PowerPoint deck — one slide per section |
 | `document_generate_pdf` | Generate a PDF from the same structured content |
+| `document_convert_to_pdf` | Convert an existing DOCX/PPTX file to PDF via LibreOffice (`soffice --headless`) |
 
-Each raises a clean `document_generation_unavailable` error (never a crash or an empty file) if its
-backing library (`python-docx`/`python-pptx`/`reportlab`) isn't installed
-(`pip install kanna[documents]`).
+Each `generate` tool raises a clean `document_generation_unavailable` error (never a crash or an empty
+file) if its backing library (`python-docx`/`python-pptx`/`reportlab`) isn't installed
+(`pip install kanna[documents]`). `document_convert_to_pdf` raises
+`document_conversion_unavailable` if no LibreOffice binary is found, or if the conversion itself
+fails.
 
 ## Computer control (`tools/computer/`)
 

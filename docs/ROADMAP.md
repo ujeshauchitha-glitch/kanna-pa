@@ -22,9 +22,12 @@ specific tool+argument patterns, shared across every entry point built on `boots
 `docs/SECURITY.md`), and a **scheduler daemon + `kanna scheduler add`** (`SchedulerDaemon` — a real
 run-forever/bounded-ticks loop around `Scheduler.tick()`, a documented systemd unit — plus the CLI
 command that was actually missing to create a schedule at all in Phase 1 — see `docs/SCHEDULER.md`),
-and **project scaffolding for C/C++/Java** (`project_scaffold`, plus `make` joining the `process_run`
+**project scaffolding for C/C++/Java** (`project_scaffold`, plus `make` joining the `process_run`
 allowlist so a generated Makefile-based project is actually buildable through Kanna's own tools, not
-just generated — see `docs/RUNTIMES.md`). Everything below is not yet built.
+just generated — see `docs/RUNTIMES.md`), and **DOCX/PPTX → PDF conversion**
+(`documents.convert.convert_to_pdf`, `document_convert_to_pdf`, `kanna document convert` — real
+LibreOffice-headless conversion, found and fixed a missing-package gap where a minimal LibreOffice
+install can't actually convert anything — see `docs/DOCUMENTS.md`). Everything below is not yet built.
 
 ## Vision (done, Phase 2) — what's left in this area
 
@@ -41,15 +44,20 @@ just generated — see `docs/RUNTIMES.md`). Everything below is not yet built.
 
 ## Document generation (done, Phase 2) — what's left in this area
 
-- No DOCX/PPTX → PDF conversion (LibreOffice/`soffice` is present in this environment and could back
-  one via the existing controlled-process-execution pattern, but wasn't built — direct `reportlab`
-  PDF generation was chosen instead so PDF output doesn't depend on what's installed on a given host).
-- No reading or editing of existing DOCX/PPTX/PDF files — generation only.
+- No reading or editing of existing DOCX/PPTX/PDF files — generation and DOCX/PPTX→PDF conversion
+  only.
 - No page headers/footers, multi-column PDF layout, or embedded images.
 - No PPTX theming beyond python-pptx's default template.
 - No natural-language shortcut ("write me a report about X") — that's an LLM content-authoring step
   that has to happen *before* `documents`, which only renders content it's already given
   structured (see `docs/DOCUMENTS.md` for why this wasn't built into the rule-based planner).
+
+## DOCX/PPTX → PDF conversion (done, this pass) — what's left in this area
+
+- Depends on LibreOffice being installed — no pure-Python fallback (there isn't one worth trusting
+  for real layout fidelity; see `docs/DOCUMENTS.md`).
+- One direction only (DOCX/PPTX → PDF) — no PDF → DOCX or any other conversion.
+- No batch/multi-file conversion — one `source`/`dest` pair per call.
 
 ## Computer control (done, Phase 2) — what's left in this area
 

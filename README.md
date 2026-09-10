@@ -49,6 +49,13 @@ registry/agent loop today, no CLI subcommand yet.
 python main.py document generate content.json --format pdf   # or docx, pptx
 ```
 
+With LibreOffice installed (`libreoffice-writer`/`libreoffice-impress` — `libreoffice-core` alone
+isn't enough, see `docs/DOCUMENTS.md`), convert an existing DOCX/PPTX to PDF:
+
+```bash
+python main.py document convert report.docx report.pdf
+```
+
 On a Linux machine with a live X11 session and `xdotool`/`scrot`/`xclip` installed
 (`dnf install xdotool scrot xclip` on Fedora), computer control works out of the box — no extra
 `pip install`:
@@ -100,7 +107,8 @@ tools/         filesystem, process execution (incl. make), computer control (Fed
                project scaffolding for C/C++/Java
 finance/       transactions, categories, budgets, recurring expenses, import/export, analytics
 vision/        OCR + receipt/statement structure extraction, Anthropic-vision-backed
-documents/     DOCX/PPTX/PDF generation from one shared content model, fully offline
+documents/     DOCX/PPTX/PDF generation from one shared content model (fully offline), plus
+               DOCX/PPTX -> PDF conversion via LibreOffice headless
 automation/    scheduler (once/interval/weekly schedules) + a real daemon mode
 interfaces/    CLI
 tests/         pytest suite, one file per subsystem

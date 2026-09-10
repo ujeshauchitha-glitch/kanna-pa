@@ -59,6 +59,17 @@ class DocumentGenerationUnavailable(KannaError):
     """The package needed to render a document format isn't installed (e.g. python-docx)."""
 
 
+class DocumentConversionUnavailable(KannaError):
+    """A DOCX/PPTX -> PDF conversion could not be completed.
+
+    Covers both "the LibreOffice binary isn't installed" and "the
+    conversion itself failed" (corrupt input, timeout, a soffice
+    crash) — unlike the Browser*/Vision* split elsewhere, a failed
+    conversion has no useful "backend is fine, try again" distinction
+    to preserve; either way there's no PDF, and the caller needs the
+    same honest failure either way."""
+
+
 class BrowserUnavailable(KannaError):
     """No usable browser backend is configured (e.g. playwright or its browser binary missing)."""
 

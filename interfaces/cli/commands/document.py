@@ -1,9 +1,10 @@
-"""`kanna document generate ...` — build a DOCX/PPTX/PDF from a JSON content file.
+"""`kanna document generate/convert ...` — build or convert DOCX/PPTX/PDF documents.
 
-The content shape (title/subtitle/author/sections/path) is exactly the
-`document_generate_*` tools' input schema (`documents/tools.py`) — the
-same JSON file works whether it's handed to this CLI command or to an
-agent-loop plan step.
+`generate`'s content shape (title/subtitle/author/sections/path) is
+exactly the `document_generate_*` tools' input schema (`documents/
+tools.py`) — the same JSON file works whether it's handed to this CLI
+command or to an agent-loop plan step. `convert` wraps `documents.
+convert.convert_to_pdf` (LibreOffice headless) the same way.
 """
 from __future__ import annotations
 
@@ -12,7 +13,8 @@ import json
 import sys
 
 from core.bootstrap import Kanna
-from core.errors import DocumentGenerationUnavailable, SandboxViolation
+from core.errors import DocumentConversionUnavailable, DocumentGenerationUnavailable, SandboxViolation
+from documents.convert import convert_to_pdf
 from documents.docx_writer import render_docx
 from documents.model import build_document
 from documents.pdf_writer import render_pdf
@@ -22,7 +24,7 @@ _RENDERERS = {"docx": render_docx, "pptx": render_pptx, "pdf": render_pdf}
 
 
 def register(subparsers: argparse._SubParsersAction) -> None:
-    doc_parser = subparsers.add_parser("document", help="Generate DOCX/PPTX/PDF documents")
+    doc_parser = subparsers.add_parser("document", help="Generate or convert DOCX/PPTX/PDF documents")
     doc_sub = doc_parser.add_subparsers(dest="document_command", required=True)
 
     gen_p = doc_sub.add_parser(
@@ -34,6 +36,14 @@ def register(subparsers: argparse._SubParsersAction) -> None:
     gen_p.add_argument("--overwrite", action="store_true",
                         help="Allow overwriting an existing file at the content's 'path'")
     gen_p.set_defaults(func=_cmd_generate)
+
+    conv_p = doc_sub.add_parser(
+        "convert", help="Convert an existing DOCX/PPTX file to PDF (via LibreOffice, if installed)")
+    conv_p.add_argument("source_path", help="Path to the DOCX/PPTX file, within the sandbox")
+    conv_p.add_argument("dest_path", help="Destination PDF path, within the sandbox")
+    conv_p.add_argument("--overwrite", action="store_true",
+                         help="Allow overwriting an existing file at dest_path")
+    conv_p.set_defaults(func=_cmd_convert)
 
 
 def _cmd_generate(args: argparse.Namespace, kanna: Kanna) -> int:
@@ -69,4 +79,29 @@ def _cmd_generate(args: argparse.Namespace, kanna: Kanna) -> int:
         return 1
 
     print(f"Generated {resolved} ({resolved.stat().st_size} bytes).")
+    return 0
+
+
+def _cmd_convert(args: argparse.Namespace, kanna: Kanna) -> int:
+    try:
+        source = kanna.sandbox.resolve(args.source_path)
+        dest = kanna.sandbox.resolve(args.dest_path)
+    except SandboxViolation as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    if not source.exists() or not source.is_file():
+        print(f"error: source file does not exist: {source}", file=sys.stderr)
+        return 1
+    if dest.exists() and not args.overwrite:
+        print(f"error: '{dest}' already exists; pass --overwrite to replace it", file=sys.stderr)
+        return 1
+
+    try:
+        convert_to_pdf(source, dest)
+    except DocumentConversionUnavailable as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    print(f"Converted {source} -> {dest} ({dest.stat().st_size} bytes).")
     return 0

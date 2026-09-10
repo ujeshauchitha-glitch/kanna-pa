@@ -7,7 +7,8 @@ pytest.importorskip("pptx", reason="python-pptx not installed (kanna[documents] 
 pytest.importorskip("reportlab", reason="reportlab not installed (kanna[documents] extra)")
 
 from documents.tools import (  # noqa: E402
-    DocumentGenerateDocxTool, DocumentGeneratePdfTool, DocumentGeneratePptxTool,
+    DocumentConvertToPdfTool, DocumentGenerateDocxTool, DocumentGeneratePdfTool,
+    DocumentGeneratePptxTool,
 )
 
 _ARGS = {
@@ -78,3 +79,88 @@ def test_registered_at_review_permission():
     assert DocumentGenerateDocxTool().permission.name == "REVIEW"
     assert DocumentGeneratePptxTool().permission.name == "REVIEW"
     assert DocumentGeneratePdfTool().permission.name == "REVIEW"
+
+
+# -- DocumentConvertToPdfTool — monkeypatched convert_to_pdf, no LibreOffice needed --
+
+def _fake_convert(source, dest, **kwargs):
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_bytes(b"%PDF-fake")
+
+
+def test_convert_tool_creates_pdf(ctx, tmp_path, monkeypatch):
+    monkeypatch.setattr("documents.tools.convert_to_pdf", _fake_convert)
+    (tmp_path / "in.docx").write_bytes(b"fake docx")
+
+    tool = DocumentConvertToPdfTool()
+    result = tool.execute({"source_path": "in.docx", "dest_path": "out.pdf"}, ctx)
+
+    assert result.success
+    assert result.data["path"] == str(tmp_path / "out.pdf")
+    assert result.files_created == [str(tmp_path / "out.pdf")]
+    assert (tmp_path / "out.pdf").read_bytes() == b"%PDF-fake"
+
+
+def test_convert_tool_rejects_missing_source(ctx):
+    tool = DocumentConvertToPdfTool()
+    result = tool.execute({"source_path": "nope.docx", "dest_path": "out.pdf"}, ctx)
+    assert not result.success
+    assert result.error.code == "not_found"
+
+
+def test_convert_tool_rejects_sandbox_escape_on_source(ctx):
+    tool = DocumentConvertToPdfTool()
+    result = tool.execute({"source_path": "../../etc/passwd", "dest_path": "out.pdf"}, ctx)
+    assert not result.success
+    assert result.error.code == "sandbox_violation"
+
+
+def test_convert_tool_rejects_sandbox_escape_on_dest(ctx, tmp_path):
+    (tmp_path / "in.docx").write_bytes(b"fake docx")
+    tool = DocumentConvertToPdfTool()
+    result = tool.execute({"source_path": "in.docx", "dest_path": "../../etc/out.pdf"}, ctx)
+    assert not result.success
+    assert result.error.code == "sandbox_violation"
+
+
+def test_convert_tool_refuses_overwrite_without_flag(ctx, tmp_path, monkeypatch):
+    monkeypatch.setattr("documents.tools.convert_to_pdf", _fake_convert)
+    (tmp_path / "in.docx").write_bytes(b"fake docx")
+    (tmp_path / "out.pdf").write_bytes(b"already here")
+
+    tool = DocumentConvertToPdfTool()
+    result = tool.execute({"source_path": "in.docx", "dest_path": "out.pdf"}, ctx)
+    assert not result.success
+    assert result.error.code == "already_exists"
+
+
+def test_convert_tool_overwrite_with_flag_marks_modified(ctx, tmp_path, monkeypatch):
+    monkeypatch.setattr("documents.tools.convert_to_pdf", _fake_convert)
+    (tmp_path / "in.docx").write_bytes(b"fake docx")
+    (tmp_path / "out.pdf").write_bytes(b"already here")
+
+    tool = DocumentConvertToPdfTool()
+    result = tool.execute(
+        {"source_path": "in.docx", "dest_path": "out.pdf", "overwrite": True}, ctx
+    )
+    assert result.success
+    assert result.files_modified == [str(tmp_path / "out.pdf")]
+
+
+def test_convert_tool_reports_conversion_unavailable(ctx, tmp_path, monkeypatch):
+    from core.errors import DocumentConversionUnavailable
+
+    def _raising_convert(source, dest, **kwargs):
+        raise DocumentConversionUnavailable("no LibreOffice binary found")
+
+    monkeypatch.setattr("documents.tools.convert_to_pdf", _raising_convert)
+    (tmp_path / "in.docx").write_bytes(b"fake docx")
+
+    tool = DocumentConvertToPdfTool()
+    result = tool.execute({"source_path": "in.docx", "dest_path": "out.pdf"}, ctx)
+    assert not result.success
+    assert result.error.code == "document_conversion_unavailable"
+
+
+def test_convert_tool_registered_at_review_permission():
+    assert DocumentConvertToPdfTool().permission.name == "REVIEW"

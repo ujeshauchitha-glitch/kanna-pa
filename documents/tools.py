@@ -11,12 +11,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from core.errors import DocumentGenerationUnavailable, SandboxViolation
+from core.errors import DocumentConversionUnavailable, DocumentGenerationUnavailable, SandboxViolation
 from core.permissions.levels import PermissionLevel
 from core.tools.context import ToolContext
 from core.tools.registry import ToolRegistry
 from core.tools.result import ToolResult
 from core.tools.schema import array, boolean, integer, obj, string
+from documents.convert import convert_to_pdf
 from documents.docx_writer import render_docx
 from documents.model import build_document
 from documents.pdf_writer import render_pdf
@@ -110,7 +111,64 @@ class DocumentGeneratePdfTool(_DocumentGenerateTool):
     _renderer = staticmethod(render_pdf)
 
 
-ALL_TOOLS = [DocumentGenerateDocxTool(), DocumentGeneratePptxTool(), DocumentGeneratePdfTool()]
+_CONVERT_INPUT_SCHEMA = obj(
+    {
+        "source_path": string(description="Path to an existing DOCX/PPTX file, within the sandbox"),
+        "dest_path": string(description="Destination PDF path, within the sandbox"),
+        "overwrite": boolean(description="Allow overwriting an existing file", default=False),
+    },
+    required=("source_path", "dest_path"),
+)
+
+
+class DocumentConvertToPdfTool:
+    """Converts an existing DOCX/PPTX file to PDF via LibreOffice's headless
+    mode (`documents.convert.convert_to_pdf`) — see `docs/DOCUMENTS.md`.
+    Sandboxed and overwrite-gated the same way as the generate-* tools.
+    """
+
+    name = "document_convert_to_pdf"
+    description = "Convert an existing DOCX or PPTX file (within the sandbox) to PDF."
+    permission = PermissionLevel.REVIEW
+    input_schema = _CONVERT_INPUT_SCHEMA
+    output_schema = _OUTPUT_SCHEMA
+
+    def execute(self, args: dict, ctx: ToolContext) -> ToolResult:
+        try:
+            source = ctx.sandbox.resolve(args["source_path"])
+            dest = ctx.sandbox.resolve(args["dest_path"])
+        except SandboxViolation as exc:
+            return ToolResult.fail("sandbox_violation", str(exc))
+
+        if not source.exists() or not source.is_file():
+            return ToolResult.fail("not_found", f"source file does not exist: {source}")
+
+        overwrite = bool(args.get("overwrite", False))
+        dest_existed = dest.exists()
+        if dest_existed and dest.is_dir():
+            return ToolResult.fail("is_a_directory", f"destination is a directory: {dest}")
+        if dest_existed and not overwrite:
+            return ToolResult.fail(
+                "already_exists", f"'{dest}' already exists; pass overwrite=true to replace it"
+            )
+
+        try:
+            convert_to_pdf(source, dest)
+        except DocumentConversionUnavailable as exc:
+            return ToolResult.fail("document_conversion_unavailable", str(exc))
+
+        result = ToolResult.ok({"path": str(dest), "bytes_written": dest.stat().st_size})
+        if dest_existed:
+            result.files_modified = [str(dest)]
+        else:
+            result.files_created = [str(dest)]
+        return result
+
+
+ALL_TOOLS = [
+    DocumentGenerateDocxTool(), DocumentGeneratePptxTool(), DocumentGeneratePdfTool(),
+    DocumentConvertToPdfTool(),
+]
 
 
 def register_all(registry: ToolRegistry) -> None:

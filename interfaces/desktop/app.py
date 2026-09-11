@@ -221,6 +221,8 @@ class KannaApp:
                 self._run_command(text)
             else:
                 self._log("[no speech detected]", "info")
+        except ImportError:
+            self._log("Voice not available — install numpy: pip install 'numpy<2'", "error")
         except Exception as exc:
             self._log(f"Voice error: {exc}", "error")
         finally:

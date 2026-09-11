@@ -1,6 +1,6 @@
 # Devices
 
-## Status: one real backend — `FedoraAgent` (X11)
+## Status: two real backends — `FedoraAgent` (X11) and `WindowsAgent` (PowerShell)
 
 `tools/computer/base.py` declares the device-independent surface:
 
@@ -19,7 +19,7 @@ class ComputerAgent(Protocol):
     def inspect_screen(self) -> dict: ...
 ```
 
-Two implementations exist:
+Three implementations exist:
 
 - **`tools/computer/fedora.py::FedoraAgent`** — a real backend, built on `xdotool` (mouse/keyboard/
   window management), `scrot` (screenshots), and `xclip` (clipboard). Named for the device it targets
@@ -28,13 +28,19 @@ Two implementations exist:
   (`dnf install xdotool scrot xclip` on Fedora; `apt install xdotool scrot xclip` on Debian/Ubuntu).
   Every method checks for a live `DISPLAY` and its specific binary before running anything, raising
   `CapabilityUnavailable` with the concrete reason otherwise.
+- **`tools/computer/windows.py::WindowsAgent`** — a real backend, built on PowerShell/.NET. Uses
+  `System.Drawing` for screenshots, `System.Windows.Forms.Cursor`/`SendKeys` for mouse/keyboard,
+  `Get-Clipboard`/`Set-Clipboard` for clipboard, and `Start-Process`/`Stop-Process` for app
+  management. Requires only `powershell.exe` on PATH (standard on Windows 10+). Every method checks
+  for PowerShell before running anything, raising `CapabilityUnavailable` otherwise.
 - **`tools/computer/null.py::NullComputerAgent`** — the honest fallback when no display/tooling is
   detected. Every method raises `CapabilityUnavailable`.
 
-`tools/computer/get_computer_agent()` is the one place that picks between them —
-`tools/computer/fedora.py::is_available()` checks for a live `DISPLAY` plus all three binaries, with
-no assumption either way. Every `computer_*` tool resolves its agent through this at call time, so a
-plan built before a display existed (or one built where it didn't) still does the right thing.
+`tools/computer/get_computer_agent()` is the one place that picks between them — it checks
+`fedora_available()` first (X11 + all three binaries), then `windows_available()` (PowerShell on
+PATH), and falls back to `NullComputerAgent`. Every `computer_*` tool resolves its agent through
+this at call time, so a plan built before a display existed (or one built where it didn't) still
+does the right thing.
 
 ## What was actually tested, and how
 
@@ -107,7 +113,6 @@ yes, same as everything else). On a machine with no display, every call fails cl
 
 The same high-level Kanna request should eventually work regardless of which device executes it —
 "take a picture of this receipt" selects a phone, "open this Windows application" selects a Windows
-backend, and so on. That router doesn't exist yet; there is exactly one backend
-(`get_computer_agent()` is a fixed choice between `FedoraAgent` and `NullComputerAgent`, not a router
-across multiple *registered* devices). Building `WindowsAgent`/`PhoneAgent` and the capability-based
-router across them is future work — see `docs/ROADMAP.md`.
+backend, and so on. The capability-based router across multiple registered devices doesn't exist yet;
+today `get_computer_agent()` checks Fedora → Windows → Null in order. Building `PhoneAgent` and the
+full multi-device router is future work — see `docs/ROADMAP.md`.

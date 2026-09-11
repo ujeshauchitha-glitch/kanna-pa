@@ -62,9 +62,10 @@ install can't actually convert anything — see `docs/DOCUMENTS.md`). Everything
 
 ## Computer control (done, Phase 2) — what's left in this area
 
-- One backend (`FedoraAgent`, X11) and one fallback (`NullComputerAgent`) — no `WindowsAgent`/
-  `PhoneAgent`, and no router that picks a device by capability (`get_computer_agent()` is a fixed
-  choice between the two, not a selection across multiple *registered* devices).
+- Two backends (`FedoraAgent` for X11/Linux, `WindowsAgent` for PowerShell/Windows) and one
+  fallback (`NullComputerAgent`). No `PhoneAgent`, and no full router that picks a device by
+  capability (`get_computer_agent()` checks Fedora → Windows → Null in order, not a selection
+  across multiple *registered* devices).
 - Wayland desktops without XWayland aren't supported (`xdotool`/`scrot`/`xclip` are X11 tools) — most
   Wayland compositors, including Fedora's default GNOME session, do run XWayland, so this covers more
   than it sounds like, but a native-Wayland backend (`wtype`/`grim`/`wl-clipboard`) isn't built.
@@ -148,10 +149,11 @@ result messages, and honest scheduled outcome propagation (`WORKFLOWS.md`). Sour
 authoring (`author_content`) now bridges source reading and document generation with LLM-driven
 content creation, provenance tracking, and explicit unresolved questions. `document_read` extracts
 structured content from DOCX files, and `assignment_solve` provides end-to-end question extraction
-and answering with source-grounded answers.
+and answering with source-grounded answers. `WindowsAgent` provides real desktop automation on
+Windows via PowerShell/.NET.
 
-1. **Additional device backends** (Windows, Phone) and the capability-based router across them, now
-   that `FedoraAgent` has validated the `ComputerAgent` interface in practice.
+1. **Phone/device backend** and the full capability-based router across all registered devices,
+   now that Fedora and Windows backends have validated the `ComputerAgent` interface in practice.
 
 ## Explicitly deferred, no strong opinion yet
 

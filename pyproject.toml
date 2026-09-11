@@ -12,9 +12,12 @@ license = { text = "Proprietary" }
 dependencies = []
 
 [project.optional-dependencies]
-# Real Anthropic-backed LLM provider. Core works without it (rule-based
-# planner + finance NLP are pure stdlib and always available).
-llm = ["anthropic>=0.40"]
+# LLM providers. Core works without any of them (rule-based planner +
+# finance NLP are pure stdlib and always available).
+#   litellm  — universal provider (100+ models: OpenAI, Anthropic, Google,
+#              local, free tiers) with automatic fallback. Recommended.
+#   anthropic — direct Anthropic SDK (legacy, use litellm instead).
+llm = ["litellm>=1.50", "anthropic>=0.40"]
 # Anthropic-vision-backed OCR/receipt extraction (vision/ocr,
 # vision/document). Needs the same 'anthropic' package as the llm extra;
 # listed again here so `pip install kanna[vision]` alone is sufficient.

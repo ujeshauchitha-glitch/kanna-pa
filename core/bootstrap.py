@@ -83,14 +83,33 @@ def build_registry(*, gate: ApprovalGate | None = None,
 
 def build_planner(settings: Settings, *, force_rule_based: bool = False) -> Planner:
     rule_based = RuleBasedPlanner()
-    if force_rule_based or settings.llm_provider != "anthropic":
+    if force_rule_based or settings.llm_provider == "rule_based":
         return rule_based
 
-    try:
-        provider = AnthropicProvider(model=settings.llm_model, max_tokens=settings.llm_max_tokens)
-        provider._get_client()  # fail fast here rather than on first real request
-    except LLMUnavailable:
+    provider = None
+
+    if settings.llm_provider == "litellm":
+        try:
+            from core.llm.litellm_provider import LiteLLMProvider
+            fallbacks = [m.strip() for m in settings.llm_fallback_models.split(",") if m.strip()]
+            provider = LiteLLMProvider(
+                model=settings.llm_model, max_tokens=settings.llm_max_tokens,
+                fallback_models=fallbacks,
+            )
+            provider._get_client()  # fail fast
+        except LLMUnavailable:
+            return rule_based
+
+    elif settings.llm_provider == "anthropic":
+        try:
+            provider = AnthropicProvider(model=settings.llm_model, max_tokens=settings.llm_max_tokens)
+            provider._get_client()  # fail fast
+        except LLMUnavailable:
+            return rule_based
+
+    if provider is None:
         return rule_based
+
     return LLMPlanner(provider, fallback=rule_based)
 
 

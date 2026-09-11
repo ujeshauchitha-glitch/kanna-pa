@@ -20,9 +20,10 @@ from core.config import paths
 _DEFAULTS: dict[str, Any] = {
     "timezone": "UTC",
     "default_currency": "INR",
-    "llm_provider": "anthropic",
-    "llm_model": "claude-sonnet-5",
+    "llm_provider": "litellm",
+    "llm_model": "ollama/qwen3:8b",
     "llm_max_tokens": 4096,
+    "llm_fallback_models": "ollama/llama3.2:3b,gpt-4o-mini",
     "log_level": "INFO",
     "max_plan_steps": 20,
     "max_corrections": 3,
@@ -37,6 +38,7 @@ _ENV_KEYS = {
     "llm_provider": "LLM_PROVIDER",
     "llm_model": "LLM_MODEL",
     "llm_max_tokens": "LLM_MAX_TOKENS",
+    "llm_fallback_models": "LLM_FALLBACK_MODELS",
     "log_level": "LOG_LEVEL",
     "max_plan_steps": "MAX_PLAN_STEPS",
     "max_corrections": "MAX_CORRECTIONS",
@@ -52,6 +54,7 @@ class Settings:
     llm_provider: str = _DEFAULTS["llm_provider"]
     llm_model: str = _DEFAULTS["llm_model"]
     llm_max_tokens: int = _DEFAULTS["llm_max_tokens"]
+    llm_fallback_models: str = _DEFAULTS["llm_fallback_models"]
     log_level: str = _DEFAULTS["log_level"]
     max_plan_steps: int = _DEFAULTS["max_plan_steps"]
     max_corrections: int = _DEFAULTS["max_corrections"]
@@ -100,6 +103,7 @@ def load_settings(config_path: Path | None = None) -> Settings:
         llm_provider=values["llm_provider"],
         llm_model=values["llm_model"],
         llm_max_tokens=int(values["llm_max_tokens"]),
+        llm_fallback_models=values.get("llm_fallback_models", ""),
         log_level=values["log_level"],
         max_plan_steps=int(values["max_plan_steps"]),
         max_corrections=int(values["max_corrections"]),

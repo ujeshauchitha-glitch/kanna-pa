@@ -88,6 +88,7 @@ network, no LLM, no API key at render time. See `docs/DOCUMENTS.md`.
 
 | Tool | What it does |
 |---|---|
+| `document_read` | Read a DOCX file and extract structured content (title, sections with headings/paragraphs/bullets, tables) |
 | `document_generate_docx` | Generate a Word document from structured title/sections content |
 | `document_generate_pptx` | Generate a PowerPoint deck — one slide per section |
 | `document_generate_pdf` | Generate a PDF from the same structured content |
@@ -169,6 +170,10 @@ result with provenance and explicit unresolved questions. The output feeds direc
 | Tool | Permission | What it does |
 |---|---|---|
 | `author_content` | LOW | Author structured Document-compatible content from source material and a task description. Returns `title`, `sections` (heading/level/paragraphs/bullets), `unresolved` (questions the author could not answer), and `provenance` (sources used). |
+| `assignment_solve` | LOW | Extract individual questions from source material and answer each one. Returns `title`, `sections` (one per question with answer), `answers` (per-question detail with source references), `unresolved`, and `provenance`. |
+
+Both tools accept `source_text` as either a plain string or a list of sections from `document_read`
+(via the `OneOfSchema` union type), making them directly composable in `$ref`-chained plans.
 
 Requires `ANTHROPIC_API_KEY` (or another configured LLM provider). Fails cleanly with
 `llm_unavailable` when no provider is configured, `empty_source`/`empty_task` for missing

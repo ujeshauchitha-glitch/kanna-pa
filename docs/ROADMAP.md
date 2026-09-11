@@ -45,7 +45,8 @@ install can't actually convert anything — see `docs/DOCUMENTS.md`). Everything
 ## Document generation (done, Phase 2) — what's left in this area
 
 - No reading or editing of existing DOCX/PPTX/PDF files — generation and DOCX/PPTX→PDF conversion
-  only.
+  only, though `document_read` now extracts structured content from DOCX files (sections, headings,
+  bullets, tables).
 - No page headers/footers, multi-column PDF layout, or embedded images.
 - No PPTX theming beyond python-pptx's default template.
 - No natural-language shortcut ("write me a report about X") — that's an LLM content-authoring step
@@ -145,13 +146,11 @@ The sequential workflow foundation is implemented: typed backward result referen
 checks, sandboxed artifact existence verification, process exit checks, per-attempt history, actual
 result messages, and honest scheduled outcome propagation (`WORKFLOWS.md`). Source-aware content
 authoring (`author_content`) now bridges source reading and document generation with LLM-driven
-content creation, provenance tracking, and explicit unresolved questions.
+content creation, provenance tracking, and explicit unresolved questions. `document_read` extracts
+structured content from DOCX files, and `assignment_solve` provides end-to-end question extraction
+and answering with source-grounded answers.
 
-1. **Assignment task extraction and multi-source synthesis.** `author_content` handles single-source
-   authoring; an assignment workflow that reads a multi-page PDF, identifies individual questions,
-   gathers references, and produces separate answers per question still needs orchestration on top of
-   the existing tools. Adaptive replanning for code/build failures remains future work.
-2. **Additional device backends** (Windows, Phone) and the capability-based router across them, now
+1. **Additional device backends** (Windows, Phone) and the capability-based router across them, now
    that `FedoraAgent` has validated the `ComputerAgent` interface in practice.
 
 ## Explicitly deferred, no strong opinion yet

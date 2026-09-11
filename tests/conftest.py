@@ -12,6 +12,7 @@ from core.permissions.gate import DenyAllGate, PreApprovedGate
 from core.permissions.sandbox import Sandbox
 from core.tools.context import ToolContext
 from core.tools.registry import ToolRegistry
+from documents import reader as document_reader
 from finance import tools as finance_tools
 from tools import filesystem, process
 
@@ -52,6 +53,7 @@ def registry() -> ToolRegistry:
     filesystem.register_all(reg)
     process.register_all(reg)
     finance_tools.register_all(reg)
+    document_reader.register_all(reg)
     return reg
 
 
@@ -62,4 +64,5 @@ def strict_registry() -> ToolRegistry:
     filesystem.register_all(reg)
     process.register_all(reg)
     finance_tools.register_all(reg)
+    document_reader.register_all(reg)
     return reg

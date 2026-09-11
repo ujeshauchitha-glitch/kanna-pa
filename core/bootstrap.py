@@ -31,6 +31,7 @@ from core.planner.rule_based import RuleBasedPlanner
 from core.tools.context import ToolContext
 from core.tools.registry import ToolRegistry
 from documents import tools as document_tools
+from documents import reader as document_reader
 from finance import tools as finance_tools
 from tools import filesystem, process
 from tools.browser import tools as browser_tools
@@ -71,6 +72,7 @@ def build_registry(*, gate: ApprovalGate | None = None,
     process.register_all(registry)
     finance_tools.register_all(registry)
     document_tools.register_all(registry)
+    document_reader.register_all(registry)
     computer_tools.register_all(registry)
     browser_tools.register_all(registry)
     vision_tools.register_all(registry)

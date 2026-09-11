@@ -108,13 +108,41 @@ This enables the core loop to handle requests like:
 The agent autonomously: reads the source → authors structured content → generates the document →
 verifies the output exists → returns the actual path.
 
+## Document read → assignment solve → document generate
+
+`document_read` extracts structured content from DOCX files (title, sections with headings/
+paragraphs/bullets, tables). `assignment_solve` takes that content, uses the LLM to extract
+individual questions, answers each one using only the source material, and returns
+Document-compatible output. Both tools accept `source_text` as either a string or a list of
+sections from `document_read`, enabling seamless `$ref` chaining.
+
+Example plan for reading a DOCX assignment, solving it, and producing a DOCX answer key:
+
+```json
+[
+  {"tool_name": "document_read", "args": {"path": "assignment.docx"},
+   "expected": {"success": true}},
+  {"tool_name": "assignment_solve", "args": {
+    "source_text": {"$ref": "0.data.sections"},
+    "task": "Answer all math questions."
+  }, "expected": {"success": true, "data_nonempty_key": "title"}},
+  {"tool_name": "document_generate_docx", "args": {
+    "path": "answers.docx",
+    "title": {"$ref": "1.data.title"},
+    "sections": {"$ref": "1.data.sections"}
+  }, "expected": {"success": true, "min_files_created": 1, "files_exist": ["answers.docx"]}}
+]
+```
+
+The `assignment_solve` tool returns `answers` with per-question detail (source references, unresolved
+items) and `provenance` recording what was read and solved. Questions that cannot be answered from the
+source alone appear in `unresolved` — the caller surfaces these rather than fabricating answers.
+
 ## Remaining work
 
 Plans remain sequential and fixed after planning, apart from argument correction. There is no
 adaptive replanning of a failed build, connector submission, or cross-device routing yet.
-Assignment task extraction/solving beyond single-source content authoring, and multi-source
-synthesis, remain future work.
 
-`tests/test_workflows.py` and `tests/test_authoring.py` use scripted model/vision responses with
-real file operations, SQLite, process execution, and document rendering. These tests verify
-orchestration, not live model quality.
+`tests/test_workflows.py`, `tests/test_authoring.py`, `tests/test_document_read.py`, and
+`tests/test_assignment.py` use scripted model/vision responses with real file operations, SQLite,
+process execution, and document rendering. These tests verify orchestration, not live model quality.

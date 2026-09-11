@@ -16,3 +16,6 @@ venv/
 *.db-shm
 kanna.toml
 .env
+
+# Test temp directory
+pytest-tmp/

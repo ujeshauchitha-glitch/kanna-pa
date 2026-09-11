@@ -124,3 +124,25 @@ def boolean(*, description: str = "", default: Any = None) -> Schema:
 
 def array(items: Schema, *, description: str = "") -> Schema:
     return Schema(type="array", items=items, description=description)
+
+
+class OneOfSchema:
+    """A schema that accepts one of multiple types (used for $ref flexibility)."""
+
+    def __init__(self, *alternatives: Schema, description: str = "") -> None:
+        self._alternatives = alternatives
+        self.description = description
+
+    def to_json_schema(self) -> dict[str, Any]:
+        # For LLM tool-use, use the first alternative as the canonical shape.
+        return self._alternatives[0].to_json_schema()
+
+    def validate(self, value: Any, *, path: str = "$") -> None:
+        for alt in self._alternatives:
+            try:
+                alt.validate(value, path=path)
+                return
+            except ValidationError:
+                continue
+        types = ", ".join(a.type for a in self._alternatives)
+        raise ValidationError(f"{path}: expected one of [{types}], got {type(value).__name__}")

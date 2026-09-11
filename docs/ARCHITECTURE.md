@@ -34,7 +34,10 @@ tools/
                 scaffolding tool exists for these, unlike cargo/npm), tools.py (project_scaffold)
   authoring/    ContentAuthor protocol, LLMAuthor (real — reads source material and tasks,
                 produces Document-compatible structured content with provenance and unresolved
-                questions), tools.py (registry-exposed author_content tool)
+                questions), assignment.py (Question/Answer/AssignmentResult — extract_questions,
+                answer_questions, solve_assignment pipeline), tools.py (registry-exposed
+                author_content and assignment_solve tools; both accept string or section-list
+                source_text via OneOfSchema)
 
 finance/        money.py (exact integer-minor-unit arithmetic), models.py, repository.py (SQL),
                 dates.py (shared date-string normalization), nlp.py (deterministic NL parsing),
@@ -53,10 +56,12 @@ vision/
 
 documents/      model.py (shared Document/Section/TableData content model, format-independent),
                 docx_writer.py / pptx_writer.py / pdf_writer.py (one real renderer each, offline —
-                python-docx / python-pptx / reportlab), convert.py (DOCX/PPTX -> PDF via LibreOffice
-                headless — real layout fidelity, needs soffice installed), tools.py
-                (registry-exposed document_generate_*/document_convert_to_pdf tools, sandboxed +
-                overwrite-gated like fs_write_file)
+                python-docx / python-pptx / reportlab), reader.py (DocumentReadTool — extracts
+                structured content from DOCX files: title, sections, bullets, tables),
+                convert.py (DOCX/PPTX -> PDF via LibreOffice headless — real layout fidelity,
+                needs soffice installed), tools.py (registry-exposed document_read,
+                document_generate_*/document_convert_to_pdf tools, sandboxed + overwrite-gated
+                like fs_write_file)
 
 automation/
   scheduler/    Schedule (once/interval/weekly), pure due-time computation, SchedulerStore

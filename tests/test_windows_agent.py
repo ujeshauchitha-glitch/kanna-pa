@@ -16,6 +16,25 @@ from tools.computer.base import Point
 from tools.computer.windows import WindowsAgent, is_available
 
 
+@pytest.fixture(autouse=True)
+def _powershell_present(request, monkeypatch):
+    """Every mocked-subprocess test below calls a WindowsAgent method that
+    checks `_require_powershell()` before ever reaching the mocked
+    `subprocess.run` — without this, every one of them fails immediately
+    with CapabilityUnavailable on any machine that doesn't actually have
+    `powershell.exe` on PATH (i.e. every Linux CI runner and this
+    sandbox), never exercising the mocked behavior they're meant to test.
+    Tests that specifically exercise real availability detection
+    (`test_windows_agent_detected_on_windows`) or patch `shutil.which`
+    themselves opt out or simply override this default afterward.
+    """
+    if request.node.name == "test_windows_agent_detected_on_windows":
+        return
+    monkeypatch.setattr(
+        "shutil.which", lambda name: "/usr/bin/powershell.exe" if name == "powershell.exe" else None
+    )
+
+
 # --- Availability detection ---
 
 

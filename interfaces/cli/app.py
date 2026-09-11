@@ -32,6 +32,17 @@ def build_parser() -> argparse.ArgumentParser:
     ask_p.add_argument("request")
     ask_p.set_defaults(func=_cmd_ask)
 
+    voice_p = subparsers.add_parser("voice", help="Voice-controlled Kanna (speak commands)")
+    voice_p.add_argument("--loop", action="store_true",
+                         help="Keep listening continuously (Ctrl+C to stop)")
+    voice_p.add_argument("--duration", type=float, default=5.0,
+                         help="Seconds to listen per utterance (default: 5)")
+    voice_p.add_argument("--language", default="en-US",
+                         help="Speech recognition language (default: en-US)")
+    voice_p.add_argument("--yes", action="store_true",
+                         help="Auto-approve REVIEW-level actions from voice commands")
+    voice_p.set_defaults(func=_cmd_voice)
+
     tools_p = subparsers.add_parser("tools", help="Inspect the tool registry")
     tools_sub = tools_p.add_subparsers(dest="tools_command", required=True)
     tools_sub.add_parser("list", help="List every registered tool").set_defaults(func=_cmd_tools_list)
@@ -62,6 +73,41 @@ def _cmd_ask(args: argparse.Namespace, kanna) -> int:
     result = kanna.agent_loop().run(args.request)
     print(result.message)
     return 0 if result.state.value == "complete" else 1
+
+
+def _cmd_voice(args: argparse.Namespace, kanna) -> int:
+    from interfaces.voice.listener import listen_loop, listen_once
+    from core.errors import CapabilityUnavailable
+
+    try:
+        _check_mic()
+    except CapabilityUnavailable as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    def handle_command(text: str) -> None:
+        print(f"\n> {text}")
+        result = kanna.agent_loop().run(text)
+        print(result.message)
+
+    if args.loop:
+        listen_loop(handle_command, duration=args.duration, language=args.language)
+    else:
+        text = listen_once(duration=args.duration, language=args.language)
+        if text:
+            handle_command(text)
+        else:
+            print("No speech detected. Try again or use --loop for continuous listening.")
+    return 0
+
+
+def _check_mic() -> None:
+    import sounddevice as sd
+    devices = sd.query_devices()
+    input_devices = [d for d in devices if d["max_input_channels"] > 0]
+    if not input_devices:
+        from core.errors import CapabilityUnavailable
+        raise CapabilityUnavailable("no microphone found; voice interface requires an audio input device")
 
 
 def _cmd_tools_list(args: argparse.Namespace, kanna) -> int:

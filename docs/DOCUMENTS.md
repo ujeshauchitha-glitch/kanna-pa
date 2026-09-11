@@ -163,3 +163,11 @@ overwrite-protection round trip (`generate` → refuse → `--overwrite` succeed
   available regardless, for *new* content rather than converting existing files).
 - No reading/editing of existing DOCX/PPTX/PDF files — generation and DOCX/PPTX→PDF conversion only,
   no other conversions (e.g. PDF→DOCX).
+
+## Agent workflow integration
+
+Generation arguments can now consume earlier tool results through plan references. A text read can
+supply a paragraph; `vision_extract_structure` can supply complete `title`/`sections` values including
+tables. This preserves the existing content model without an extra mapping subsystem. The agent
+checks claimed output existence and reports its actual path. See `WORKFLOWS.md` for a PDF example.
+This copies source content; source-aware report authoring and assignment solving remain future work.

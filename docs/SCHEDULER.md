@@ -116,3 +116,11 @@ silently storing an unusable schedule.
 - No pause/resume distinction — `remove` (deactivate) is the only lifecycle transition besides
   creation; there's no "temporarily disable, then re-enable later" command (a removed schedule can't
   currently be reactivated except by direct database access).
+
+## Workflow outcomes and history
+
+An agent callback returning `failed` or `blocked` now records a failed job, not a succeeded job.
+Only `complete` is success; the exact agent state/message is retained in the job result. A schedule
+with no request is blocked. Generic callbacks with no state field retain exception-based reporting.
+Job timestamps use the tick's supplied time, and legacy offset-aware timestamps normalize to naive
+UTC before due-time arithmetic, so interval schedules work across repeated ticks.

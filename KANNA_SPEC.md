@@ -37,6 +37,11 @@ files, runs code, queries its own database — rather than just describing steps
 
 ## What Kanna can do today (Phase 1 + Phase 2)
 
+- Execute sequential workflows with typed references to earlier results, retain per-attempt evidence,
+  and return actual artifact paths and tool-provided answers. Failed postconditions cannot produce
+  COMPLETE; process exit codes and claimed output existence are checked. See `docs/WORKFLOWS.md`
+  for syntax, retry boundaries, and the distinction between copying sources and authoring new content.
+
 - Take a natural-language request via `kanna ask "<request>"`, plan it (rule-based pattern matching,
   or an LLM planner when `ANTHROPIC_API_KEY` is set), execute it through the tool registry, verify
   each step's postconditions in code, retry a failing step up to a bounded correction budget — with

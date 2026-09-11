@@ -76,6 +76,11 @@ deliberately not created until there's real code to put in them — see `docs/RO
 
 ## The agent loop
 
+Sequential plans now support backward result references (`core/planner/bindings.py`). Plan validation
+checks literal structure and postconditions first; the loop resolves each step's arguments from
+verified prior results before the unchanged registry validation/permission pipeline. Step persistence
+includes resolved arguments and per-attempt raw results/verification errors. See `WORKFLOWS.md`.
+
 ```
 UNDERSTAND → PLAN → SELECT TOOLS → EXECUTE → OBSERVE → CHECK → CORRECT IF NECESSARY → VERIFY → COMPLETE
 ```
@@ -94,7 +99,11 @@ planner both interprets the request and picks tools + arguments. Each step is th
    the args are revised based on the specific failure reason before each retry; otherwise, or if that
    revision attempt itself fails (LLM unavailable, malformed response, invalid args), the retry uses
    the same args unchanged. Either way, the tool never changes mid-correction — only its args can.
-5. **Verify** — re-run the check after each attempt.
+5. **Verify** — re-run the check after each attempt. A failed postcondition is a failed step even
+   when the tool itself returned success. Claimed output paths are checked inside the sandbox and
+   process runs require exit code zero unless explicitly specified otherwise. Successful calls with
+   failed checks are not replayed; denials, invalid input/output, and unavailable capabilities also
+   terminate without retry. Other tool failures retain bounded argument correction.
 
 If a step's postconditions never pass within the correction budget, the whole run reports **FAILED**
 with the real blocker (the tool's error message or the specific postcondition that didn't hold) —

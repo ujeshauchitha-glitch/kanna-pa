@@ -92,6 +92,24 @@ def test_scheduler_tick_captures_executor_failure(db):
     assert outcomes[0]["status"] == "failed"
 
 
+def test_interval_job_survives_multiple_ticks_with_persisted_timestamp(db):
+    store = SchedulerStore(db)
+    schedule = store.create("repeat", "interval", {"seconds": 60, "anchor": "2024-01-01T00:00:00"})
+    scheduler = Scheduler(store, on_due=lambda s: {"state": "complete"})
+    assert len(scheduler.tick(now=_dt("2024-01-01T00:00:00+00:00"))) == 1
+    assert store.last_run_at(schedule.id) == _dt("2024-01-01T00:00:00")
+    assert scheduler.tick(now=_dt("2024-01-01T00:00:30")) == []
+    assert len(scheduler.tick(now=_dt("2024-01-01T00:01:00"))) == 1
+
+
+def test_legacy_aware_job_timestamp_normalized(db):
+    store = SchedulerStore(db)
+    schedule = store.create("repeat", "interval", {"seconds": 60})
+    store.record_job(schedule.id, status="succeeded", result={},
+                     ran_at=_dt("2024-01-01T05:30:00+05:30"))
+    assert store.last_run_at(schedule.id) == _dt("2024-01-01T00:00:00")
+
+
 # -- SchedulerDaemon: the "set and forget" run loop --
 
 def test_daemon_run_n_ticks_calls_tick_the_right_number_of_times(db):

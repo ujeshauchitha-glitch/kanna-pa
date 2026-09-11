@@ -53,12 +53,17 @@ class SchedulerStore:
             "SELECT ran_at FROM jobs WHERE schedule_id = ? ORDER BY ran_at DESC LIMIT 1",
             (schedule_id,),
         )
-        return None if row is None else datetime.fromisoformat(row["ran_at"])
+        if row is None:
+            return None
+        value = datetime.fromisoformat(row["ran_at"])
+        return value.astimezone(timezone.utc).replace(tzinfo=None) if value.tzinfo else value
 
-    def record_job(self, schedule_id: str, *, status: str, result: dict) -> None:
+    def record_job(self, schedule_id: str, *, status: str, result: dict,
+                   ran_at: datetime | None = None) -> None:
         self.db.execute(
             "INSERT INTO jobs (id, schedule_id, status, ran_at, result) VALUES (?, ?, ?, ?, ?)",
-            (str(uuid.uuid4()), schedule_id, status, _now(), json.dumps(result)),
+            (str(uuid.uuid4()), schedule_id, status,
+             ran_at.isoformat() if ran_at is not None else _now(), json.dumps(result)),
         )
 
     @staticmethod

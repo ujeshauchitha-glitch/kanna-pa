@@ -63,7 +63,7 @@ def register(subparsers: argparse._SubParsersAction) -> None:
 def _on_due(schedule: Schedule, kanna: Kanna) -> dict:
     request = schedule.config.get("request")
     if not request:
-        return {"note": "schedule has no 'request' in config; nothing to run"}
+        return {"state": "blocked", "message": "schedule has no 'request' in config; nothing to run"}
     result = kanna.agent_loop().run(request)
     return {"state": result.state.value, "message": result.message}
 

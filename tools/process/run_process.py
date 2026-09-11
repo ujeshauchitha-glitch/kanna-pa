@@ -101,8 +101,14 @@ class ProcessTool:
             stdout, stderr, exit_code = completed.stdout, completed.stderr, completed.returncode
         except subprocess.TimeoutExpired as exc:
             timed_out = True
+            # TimeoutExpired can contain bytes even with text=True.
             stdout = exc.stdout or ""
-            stderr = (exc.stderr or "") + f"\n[process killed after exceeding {timeout}s timeout]"
+            stderr = exc.stderr or ""
+            if isinstance(stdout, bytes):
+                stdout = stdout.decode("utf-8", errors="replace")
+            if isinstance(stderr, bytes):
+                stderr = stderr.decode("utf-8", errors="replace")
+            stderr += f"\n[process killed after exceeding {timeout}s timeout]"
             exit_code = -1
         except OSError as exc:
             return ToolResult.fail("spawn_failed", f"could not start process: {exc}")

@@ -10,7 +10,8 @@ python -m pytest -q
 No network access and no API key are required — every test that would otherwise need an LLM uses
 `core.llm.fake.FakeProvider`/`core.llm.null.NullProvider`, every test that would otherwise need
 vision uses `vision.ocr.fake.FakeOCRProvider`/`vision.document.fake.FakeDocumentProvider`, and the
-process-tool tests only invoke `python3` (always present in this environment). Document-generation
+process-tool tests invoke the running `sys.executable` with an explicit test-local allowlist, rather
+than assuming a `python3` alias exists on Windows. Document-generation
 tests (`test_documents_*.py`) do exercise the real `python-docx`/`python-pptx`/`reportlab` libraries
 (they're pure offline/deterministic — no network either way) but use `pytest.importorskip` so the
 suite degrades to skipping them, rather than failing, if `kanna[documents]` isn't installed; it is
@@ -44,11 +45,14 @@ on every push; locally, without any browser installed, it skips cleanly.
 `tests/test_browser_tools.py` covers the tool layer via `tools.browser.fake.FakeBrowserAgent` instead,
 so that coverage never depends on a real browser.
 
-As of this writing: **367 tests when a display is available (355 + 12 skipped without one), all
-passing**, covering every Phase 1 subsystem plus Phase 2 vision (receipts, statements, and generic
-document structure), document generation and DOCX/PPTX→PDF conversion, computer control, browser
-automation, LLM-driven step correction, trusted-automation configuration, the scheduler daemon, and
-C/C++/Java project scaffolding.
+The original 367-test suite also covers optional host capabilities; passing/skipped counts vary by
+installed runtimes and display/browser availability. The sequential workflow milestone adds
+`test_workflows.py`: real filesystem/PDF/DOCX flows with scripted planning/vision, backward bindings,
+bad bindings and postconditions, permission/sandbox enforcement, correction history, real process
+exit verification, finance result messages, and scheduled terminal-state propagation. Scheduler
+tests cover repeated ticks and legacy timezone-aware job timestamps. Use `pytest -q -rs` to see
+which optional capabilities were actually exercised; scripted provider tests do not establish live
+model or OCR quality.
 
 ## Layout
 

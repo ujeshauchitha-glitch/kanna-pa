@@ -52,6 +52,7 @@ class ToolRegistry:
                 "name": tool.name,
                 "description": tool.description,
                 "input_schema": tool.input_schema.to_json_schema(),
+                "output_schema": tool.output_schema.to_json_schema(),
                 "permission": tool.permission.name,
             }
             for tool in self._tools.values()

@@ -25,7 +25,8 @@ with the same args unchanged — today's behavior, never regressed.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
+from copy import deepcopy
 
 from core.agent.state import AgentState
 from core.agent.verifier import verify
@@ -34,6 +35,7 @@ from core.events.types import Event
 from core.memory.repositories.plans import PlanRepository
 from core.planner.base import Planner
 from core.planner.plan import Plan, PlanStep
+from core.planner.bindings import resolve, validate_plan
 from core.tools.context import ToolContext
 from core.tools.registry import ToolRegistry
 from core.tools.result import ToolResult
@@ -44,6 +46,7 @@ class StepOutcome:
     step: PlanStep
     result: ToolResult
     attempts: int
+    history: list[dict] = field(default_factory=list)
 
 
 @dataclass
@@ -69,6 +72,7 @@ class AgentLoop:
         self._emit(AgentState.PLANNING)
         try:
             plan = self.planner.create_plan(request, self.registry)
+            validate_plan(plan, self.registry)
         except PlanningError as exc:
             self._emit(AgentState.BLOCKED, reason=str(exc))
             return AgentRunResult(state=AgentState.BLOCKED, plan=None, message=str(exc))
@@ -78,17 +82,23 @@ class AgentLoop:
 
         outcomes: list[StepOutcome] = []
         for index, step in enumerate(plan.steps):
-            outcome = self._run_step(step)
+            try:
+                resolved_step = replace(step, args=resolve(
+                    step.args, [o.result.to_dict() for o in outcomes]))
+                outcome = self._run_step(resolved_step)
+            except PlanningError as exc:
+                outcome = StepOutcome(step, ToolResult.fail("binding_failed", str(exc)), 0)
             outcomes.append(outcome)
             self._plan_repo.record_step_result(
                 plan_id, index,
                 status="ok" if outcome.result.success else "failed",
-                result=outcome.result.to_dict(),
+                result={**outcome.result.to_dict(), "attempts": outcome.history,
+                        "resolved_args": outcome.step.args},
             )
 
             if not outcome.result.success:
                 self._plan_repo.set_status(plan_id, "failed")
-                reasons = verify(step, outcome.result)
+                reasons = verify(outcome.step, outcome.result, self.ctx)
                 blocker = "; ".join(reasons) if reasons else (
                     outcome.result.error.message if outcome.result.error else "unknown failure"
                 )
@@ -107,24 +117,36 @@ class AgentLoop:
 
     def _run_step(self, step: PlanStep) -> StepOutcome:
         current = step
-        self._emit(AgentState.EXECUTING, tool=current.tool_name)
-        result = self.registry.invoke(current.tool_name, current.args, self.ctx)
-        attempts = 1
-
-        self._emit(AgentState.OBSERVING, tool=current.tool_name, success=result.success)
-        self._emit(AgentState.CHECKING, tool=current.tool_name)
-        reasons = verify(current, result)
-
-        while reasons and attempts <= self.max_corrections:
-            current = self._revise(current, reasons)
-            self._emit(AgentState.CORRECTING, tool=current.tool_name, attempt=attempts,
-                        reasons=reasons)
-            result = self.registry.invoke(current.tool_name, current.args, self.ctx)
-            attempts += 1
-            reasons = verify(current, result)
-
+        history = []
+        terminal_errors = {"approval_denied", "permission_denied", "sandbox_violation",
+                           "invalid_input", "invalid_output"}
+        for attempt in range(1, max(0, self.max_corrections) + 2):
+            self._emit(AgentState.EXECUTING, tool=current.tool_name)
+            result = self.registry.invoke(current.tool_name, deepcopy(current.args), self.ctx)
+            self._emit(AgentState.OBSERVING, tool=current.tool_name, success=result.success)
+            self._emit(AgentState.CHECKING, tool=current.tool_name)
+            reasons = verify(current, result, self.ctx)
+            history.append({"attempt": attempt, "args": deepcopy(current.args),
+                            "result": deepcopy(result.to_dict()), "verification_errors": reasons})
+            if not reasons:
+                break
+            # Never replay a successful side effect to fix a failed check. Never
+            # ask a model to route around an approval or sandbox denial.
+            if result.success or (result.error and (
+                    result.error.code in terminal_errors or result.error.code.endswith("_unavailable"))):
+                break
+            if attempt <= self.max_corrections:
+                current = self._revise(current, reasons)
+                self._emit(AgentState.CORRECTING, tool=current.tool_name, attempt=attempt,
+                           reasons=reasons)
         self._emit(AgentState.VERIFYING, tool=current.tool_name, passed=not reasons)
-        return StepOutcome(step=current, result=result, attempts=attempts)
+        if reasons and result.success:
+            result = ToolResult.fail("verification_failed", "; ".join(reasons),
+                                     data=result.data, files_created=result.files_created,
+                                     files_modified=result.files_modified,
+                                     files_deleted=result.files_deleted, metadata=result.metadata,
+                                     duration_ms=result.duration_ms)
+        return StepOutcome(step=current, result=result, attempts=len(history), history=history)
 
     def _revise(self, step: PlanStep, reasons: list[str]) -> PlanStep:
         """Before a correction retry, ask the planner to fix the step's args
@@ -137,7 +159,9 @@ class AgentLoop:
         if revise is None:
             return step
         try:
-            return revise(step, reasons, self.registry)
+            revised = revise(deepcopy(step), reasons, self.registry)
+            # Optional planners may revise arguments only, never weaken checks.
+            return replace(step, args=revised.args)
         except PlanningError:
             return step
 
@@ -149,6 +173,11 @@ class AgentLoop:
         for outcome in outcomes:
             desc = outcome.step.description or outcome.step.tool_name
             lines.append(f"- {desc}: done")
+            data = outcome.result.data
+            if isinstance(data.get("message"), str):
+                lines.append(data["message"])
+            for path in outcome.result.files_created + outcome.result.files_modified:
+                lines.append(f"  Output: {path}")
         return "Completed:\n" + "\n".join(lines)
 
     def _emit(self, state: AgentState, **payload) -> None:

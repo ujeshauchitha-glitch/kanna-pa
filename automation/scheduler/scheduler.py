@@ -31,6 +31,8 @@ class Scheduler:
         `tzinfo` stripped so it compares against them without raising.
         """
         now = now or datetime.now(timezone.utc).replace(tzinfo=None)
+        if now.tzinfo is not None:
+            now = now.astimezone(timezone.utc).replace(tzinfo=None)
         outcomes = []
 
         for schedule in self.store.list(active_only=True):
@@ -41,7 +43,9 @@ class Scheduler:
             if self.on_due is not None:
                 try:
                     result = self.on_due(schedule)
-                    status = "succeeded"
+                    # Agent callbacks return terminal state rather than raising.
+                    state = result.get("state")
+                    status = ("succeeded" if state == "complete" else "failed") if state is not None else "succeeded"
                 except Exception as exc:  # noqa: BLE001 - one bad job must not kill the tick
                     result = {"error": str(exc)}
                     status = "failed"
@@ -49,7 +53,7 @@ class Scheduler:
                 result = {"note": "no executor configured; recorded as due"}
                 status = "skipped"
 
-            self.store.record_job(schedule.id, status=status, result=result)
+            self.store.record_job(schedule.id, status=status, result=result, ran_at=now)
             next_run = compute_next_run(schedule, now=now, last_run=now)
             self.store.set_next_run_at(schedule.id, next_run)
             if next_run is None:

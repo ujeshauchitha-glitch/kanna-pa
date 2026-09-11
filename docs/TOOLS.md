@@ -4,6 +4,12 @@ Every tool is registered in `core.tools.registry.ToolRegistry` and reachable exa
 `registry.invoke(name, args, ctx)`. Run `kanna tools list` for the live catalog (name, permission
 level, description) of whatever's registered in your build.
 
+The planner catalog includes each tool's output schema as well as its input schema. Plan arguments
+may refer to earlier results using `{"$ref": "0.data.content"}`; resolved values undergo normal
+schema and permission checks. See `WORKFLOWS.md` for examples. The agent verifies claimed artifacts
+exist and treats nonzero process exits as failed work by default, while the process tool itself still
+returns captured diagnostics as a successful invocation. Missing executables are never simulated.
+
 A REVIEW-level tool's approval doesn't have to be asked for every time: `kanna trust add <tool_name>
 [--arg key=value ...]` grants it standing approval, so future matching calls — through `kanna ask`, a
 scheduler-triggered run, anywhere else — auto-approve. See "Approval gates" (`TrustStoreGate`) in

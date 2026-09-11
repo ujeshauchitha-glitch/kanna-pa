@@ -15,6 +15,7 @@ import re
 from core.errors import LLMUnavailable, PlanningError, ValidationError
 from core.llm.base import LLMProvider, Message
 from core.planner.plan import Plan, PlanStep
+from core.planner.bindings import validate_plan
 from core.tools.registry import ToolRegistry
 
 _SYSTEM_TEMPLATE = """You are Kanna's planner. Given a user request and a list of available tools, \
@@ -26,6 +27,18 @@ respond with ONLY a JSON object (no prose, no markdown fences) of the form:
 Only use tool names from this list, and make sure "args" satisfies each tool's input schema:
 
 {tool_catalog}
+
+Use result references for values learned by earlier steps, including nested arrays/objects:
+{{"$ref": "0.data.content"}} copies the content from step 0's actual result.
+References use zero-based earlier step indices, then data/files_created/files_modified/metadata,
+then dot-separated keys or list indices. They replace a whole value, never part of a string.
+Do not invent file contents or outputs that have not been read. References are resolved and
+validated against the tool schema before permission checks and execution.
+Steps may include "expected": {{"success": true, "data_equals": {{"exists": true}},
+"files_exist": ["report.pdf"]}}. Other checks: min_files_created, min_files_modified,
+data_nonempty_key, exit_code. process_run defaults to requiring exit_code 0.
+To re-render an extracted document, pass its title and sections by reference to a document
+generation tool. A reference copies content; it cannot summarize or author new answers.
 
 If the request cannot be fulfilled with these tools, respond with {{"rationale": "...", "steps": []}}.
 """
@@ -79,23 +92,24 @@ class LLMPlanner:
         except json.JSONDecodeError as exc:
             raise PlanningError(f"LLM returned invalid JSON: {exc}") from exc
 
+        if not isinstance(payload, dict):
+            raise PlanningError("LLM plan must be an object")
         steps_raw = payload.get("steps", [])
-        if not steps_raw:
+        if not isinstance(steps_raw, list) or not steps_raw:
             raise PlanningError("LLM reported the request cannot be fulfilled with available tools")
 
         steps: list[PlanStep] = []
         for i, step in enumerate(steps_raw):
+            if not isinstance(step, dict):
+                raise PlanningError(f"step {i}: must be an object")
             tool_name = step.get("tool_name")
             args = step.get("args", {})
-            if not registry.has(tool_name):
-                raise PlanningError(f"step {i}: LLM referenced unknown tool '{tool_name}'")
-            try:
-                registry.get(tool_name).input_schema.validate(args)
-            except ValidationError as exc:
-                raise PlanningError(f"step {i}: args for '{tool_name}' failed validation: {exc}") from exc
-            steps.append(PlanStep(tool_name=tool_name, args=args, description=step.get("description", "")))
+            steps.append(PlanStep(tool_name=tool_name, args=args, description=step.get("description", ""),
+                                  expected=step.get("expected", {"success": True})))
 
-        return Plan(request=request, steps=steps, rationale=payload.get("rationale", ""))
+        plan = Plan(request=request, steps=steps, rationale=payload.get("rationale", ""))
+        validate_plan(plan, registry)
+        return plan
 
     def revise_step(self, step: PlanStep, reasons: list[str], registry: ToolRegistry) -> PlanStep:
         """Ask the LLM to fix a failing step's args, given why it failed.
@@ -143,6 +157,8 @@ class LLMPlanner:
         except json.JSONDecodeError as exc:
             raise PlanningError(f"LLM returned invalid JSON revision: {exc}") from exc
 
+        if not isinstance(payload, dict):
+            raise PlanningError("LLM revision must be an object")
         args = payload.get("args")
         if not isinstance(args, dict):
             raise PlanningError("LLM revision response had no 'args' object")

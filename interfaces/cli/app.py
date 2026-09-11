@@ -80,6 +80,11 @@ def _cmd_db_migrate(args: argparse.Namespace, kanna) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    # Piped Windows stdout defaults to a legacy code page, but tool
+    # descriptions and deterministic finance messages include Unicode.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8")
     parser = build_parser()
     args = parser.parse_args(argv)
 

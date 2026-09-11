@@ -2,6 +2,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from core.tools.schema import Schema, array, integer, obj, string
+
+EXPECTED_SCHEMA = obj({
+    "success": Schema(type="boolean", enum=(True,)),
+    "min_files_created": integer(minimum=0),
+    "min_files_modified": integer(minimum=0),
+    "data_nonempty_key": string(),
+    "data_equals": obj({}),
+    "files_exist": array(string()),
+    "exit_code": integer(),
+})
 
 
 @dataclass

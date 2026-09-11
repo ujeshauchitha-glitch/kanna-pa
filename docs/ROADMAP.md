@@ -141,6 +141,12 @@ install can't actually convert anything — see `docs/DOCUMENTS.md`). Everything
 
 ## Next candidates, roughly in order of leverage
 
+The sequential workflow foundation is implemented: typed backward result references, runtime schema
+checks, sandboxed artifact existence verification, process exit checks, per-attempt history, actual
+result messages, and honest scheduled outcome propagation (`WORKFLOWS.md`). Real filesystem/PDF
+and structured-extraction-to-DOCX integration tests exercise the shared engine. New-source content
+authoring and adaptive replanning remain missing; these are the next layer before assignment solving.
+
 1. **Education/assignment workflow, NeoColab integration, handwriting rendering.** Document generation
    and generic document structure extraction are both done now, so the pieces exist — an assignment
    workflow is essentially "read the assignment PDF via `vision_extract_structure`, do the work, write

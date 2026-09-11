@@ -22,7 +22,7 @@ _DEFAULTS: dict[str, Any] = {
     "default_currency": "INR",
     "llm_provider": "litellm",
     "llm_model": "ollama/qwen3:8b",
-    "llm_max_tokens": 4096,
+    "llm_max_tokens": 8192,
     "llm_fallback_models": "ollama/llama3.2:3b,gpt-4o-mini",
     "log_level": "INFO",
     "max_plan_steps": 20,

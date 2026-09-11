@@ -41,7 +41,16 @@ class LiteLLMProvider:
 
         # Allow any provider key via standard env vars (OPENAI_API_KEY,
         # ANTHROPIC_API_KEY, GEMINI_API_KEY, etc.) — litellm picks them
-        # up automatically.
+        # up automatically.  For Ollama, route through the OpenAI-compatible
+        # /v1/ endpoint which handles Qwen's thinking tags properly.
+        if self.model.startswith("ollama/"):
+            import os
+            ollama_base = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
+            # Rewrite "ollama/model" to "openai/model" so litellm hits /v1/
+            self.model = "openai/" + self.model.split("/", 1)[1]
+            litellm.api_base = f"{ollama_base}/v1"
+            litellm.api_key = "ollama"  # Ollama doesn't need a real key
+
         self._client = litellm
         return self._client
 
@@ -103,7 +112,13 @@ class LiteLLMProvider:
         message = choice.message
 
         if message.content:
-            text_parts.append(message.content)
+            content = message.content
+            # Qwen 3 wraps responses in <think>...</think> tags — strip them
+            if "<think>" in content and "</think>" in content:
+                import re
+                content = re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL).strip()
+            if content:
+                text_parts.append(content)
 
         if message.tool_calls:
             for tc in message.tool_calls:

@@ -14,6 +14,7 @@ def _run(args: list[str], tmp_path: Path, cwd: Path | None = None) -> subprocess
 
     env = dict(**os.environ)
     env["KANNA_HOME"] = str(tmp_path / "kanna_home")
+    env["KANNA_LLM_PROVIDER"] = "rule_based"  # tests never need a real LLM
     return subprocess.run(
         [sys.executable, str(REPO_ROOT / "main.py"), *args],
         cwd=str(cwd or tmp_path), env=env, capture_output=True, text=True, timeout=30,

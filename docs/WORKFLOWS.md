@@ -69,14 +69,52 @@ remain visible in job results and are recorded as failed jobs. Generic callbacks
 retain their prior exception-based success contract. Job timestamps use the supplied tick time;
 legacy offset-aware timestamps normalize to naive UTC on reading.
 
+## Content authoring workflow
+
+`author_content` takes source material and a task, uses the LLM to produce structured
+Document-compatible content (title + sections with headings/paragraphs/bullets), and returns the
+result with `provenance` and `unresolved` fields. The output feeds directly into document generation
+tools via plan references.
+
+Example plan for reading a source file and generating an authored PDF report:
+
+```json
+[
+  {"tool_name": "fs_read_file", "args": {"path": "notes.txt"},
+   "expected": {"success": true, "data_equals": {"truncated": false}}},
+  {"tool_name": "author_content", "args": {
+    "source_text": {"$ref": "0.data.content"},
+    "task": "Write a one-paragraph summary of this material."
+  }, "expected": {"success": true, "data_nonempty_key": "title"}},
+  {"tool_name": "document_generate_pdf", "args": {
+    "path": "summary.pdf",
+    "title": {"$ref": "1.data.title"},
+    "sections": {"$ref": "1.data.sections"}
+  }, "expected": {"success": true, "min_files_created": 1, "files_exist": ["summary.pdf"]}},
+  {"tool_name": "fs_file_info", "args": {"path": {"$ref": "2.data.path"}},
+   "expected": {"data_equals": {"exists": true, "is_file": true}}}
+]
+```
+
+The `author_content` tool returns `unresolved` — a list of questions the author could not answer
+from the source alone. A caller should surface these to the user rather than fabricating answers.
+`provenance` records which sources were read and what task was requested, providing an audit trail
+for the authored content.
+
+This enables the core loop to handle requests like:
+
+> "Read this file, generate a report from it, save the PDF, and tell me where it is."
+
+The agent autonomously: reads the source → authors structured content → generates the document →
+verifies the output exists → returns the actual path.
+
 ## Remaining work
 
 Plans remain sequential and fixed after planning, apart from argument correction. There is no
-content-authoring call that can reason over newly read sources, adaptive replanning of a failed build,
-assignment task extraction/solving, connector submission, or cross-device routing yet. Copying
-extracted structure is not answering an assignment. The next milestone should add a provider-backed,
-schema-validated content-authoring capability over observed sources, using these references and the
-existing document renderers, with provenance and explicit unresolved questions.
+adaptive replanning of a failed build, connector submission, or cross-device routing yet.
+Assignment task extraction/solving beyond single-source content authoring, and multi-source
+synthesis, remain future work.
 
-`tests/test_workflows.py` uses scripted model/vision responses with real file operations, SQLite,
-process execution, and document rendering. These tests verify orchestration, not live model quality.
+`tests/test_workflows.py` and `tests/test_authoring.py` use scripted model/vision responses with
+real file operations, SQLite, process execution, and document rendering. These tests verify
+orchestration, not live model quality.

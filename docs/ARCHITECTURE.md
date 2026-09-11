@@ -32,6 +32,9 @@ tools/
                 tools.py (registry-exposed browser_* tools)
   scaffold/     Pure project-skeleton generators for C/C++/Java (templates.py — no ecosystem
                 scaffolding tool exists for these, unlike cargo/npm), tools.py (project_scaffold)
+  authoring/    ContentAuthor protocol, LLMAuthor (real — reads source material and tasks,
+                produces Document-compatible structured content with provenance and unresolved
+                questions), tools.py (registry-exposed author_content tool)
 
 finance/        money.py (exact integer-minor-unit arithmetic), models.py, repository.py (SQL),
                 dates.py (shared date-string normalization), nlp.py (deterministic NL parsing),

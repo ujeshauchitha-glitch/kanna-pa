@@ -158,6 +158,22 @@ rather than wrapped inside another subsystem's tool the way `finance_import_rece
 Fails cleanly with `vision_unavailable` if `ANTHROPIC_API_KEY`/`anthropic` isn't configured
 (`pip install kanna[vision]`).
 
+## Content authoring (`tools/authoring/`)
+
+`author_content` bridges source reading and document generation. It takes source material (text from
+a file, an extraction, or any string) and a task description, uses the LLM to author structured
+Document-compatible content (title + sections with headings/paragraphs/bullets), and returns the
+result with provenance and explicit unresolved questions. The output feeds directly into the existing
+`documents` renderers via plan references. See `docs/WORKFLOWS.md` for a full example.
+
+| Tool | Permission | What it does |
+|---|---|---|
+| `author_content` | LOW | Author structured Document-compatible content from source material and a task description. Returns `title`, `sections` (heading/level/paragraphs/bullets), `unresolved` (questions the author could not answer), and `provenance` (sources used). |
+
+Requires `ANTHROPIC_API_KEY` (or another configured LLM provider). Fails cleanly with
+`llm_unavailable` when no provider is configured, `empty_source`/`empty_task` for missing
+inputs, and `authoring_failed` if the LLM returns unparseable content.
+
 ## Building a new tool
 
 1. Implement the `Tool` protocol (`core/tools/protocol.py`): `name`, `description`, `input_schema`/

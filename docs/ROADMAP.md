@@ -143,15 +143,14 @@ install can't actually convert anything — see `docs/DOCUMENTS.md`). Everything
 
 The sequential workflow foundation is implemented: typed backward result references, runtime schema
 checks, sandboxed artifact existence verification, process exit checks, per-attempt history, actual
-result messages, and honest scheduled outcome propagation (`WORKFLOWS.md`). Real filesystem/PDF
-and structured-extraction-to-DOCX integration tests exercise the shared engine. New-source content
-authoring and adaptive replanning remain missing; these are the next layer before assignment solving.
+result messages, and honest scheduled outcome propagation (`WORKFLOWS.md`). Source-aware content
+authoring (`author_content`) now bridges source reading and document generation with LLM-driven
+content creation, provenance tracking, and explicit unresolved questions.
 
-1. **Education/assignment workflow, NeoColab integration, handwriting rendering.** Document generation
-   and generic document structure extraction are both done now, so the pieces exist — an assignment
-   workflow is essentially "read the assignment PDF via `vision_extract_structure`, do the work, write
-   it up via `documents`." What's missing is the workflow itself: turning an extracted
-   `DocumentStructure` into actual work items, and a `documents.model.Document` to render the result.
+1. **Assignment task extraction and multi-source synthesis.** `author_content` handles single-source
+   authoring; an assignment workflow that reads a multi-page PDF, identifies individual questions,
+   gathers references, and produces separate answers per question still needs orchestration on top of
+   the existing tools. Adaptive replanning for code/build failures remains future work.
 2. **Additional device backends** (Windows, Phone) and the capability-based router across them, now
    that `FedoraAgent` has validated the `ComputerAgent` interface in practice.
 

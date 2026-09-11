@@ -38,9 +38,15 @@ files, runs code, queries its own database — rather than just describing steps
 ## What Kanna can do today (Phase 1 + Phase 2)
 
 - Execute sequential workflows with typed references to earlier results, retain per-attempt evidence,
-  and return actual artifact paths and tool-provided answers. Failed postconditions cannot produce
+  and return actual artifact paths and deterministic finance messages. Failed postconditions cannot produce
   COMPLETE; process exit codes and claimed output existence are checked. See `docs/WORKFLOWS.md`
   for syntax, retry boundaries, and the distinction between copying sources and authoring new content.
+
+- Author structured Document-compatible content from source material and a task description via
+  `author_content`. The LLM reads actual sources, produces structured content (title + sections with
+  headings/paragraphs/bullets), and returns provenance and explicit unresolved questions. The output
+  feeds directly into document generation tools via plan references. See `docs/WORKFLOWS.md` for
+  examples.
 
 - Take a natural-language request via `kanna ask "<request>"`, plan it (rule-based pattern matching,
   or an LLM planner when `ANTHROPIC_API_KEY` is set), execute it through the tool registry, verify
@@ -120,10 +126,9 @@ files, runs code, queries its own database — rather than just describing steps
   refunds, salary) are reported, not imported, since `Transaction` has no signed-amount or income/
   expense representation — see `docs/FINANCE.md`.
 - **Reading or editing existing DOCX/PPTX/PDF files** — generation, and DOCX/PPTX→PDF conversion, only.
-  Generation is only from structured content built by the caller (no "turn this rough idea into a full
-  report" content-writing step; that's a job for an LLM *before* handing `documents` a `Document`); PDF
-  conversion depends on LibreOffice being installed, with no fallback if it isn't — see
-  `docs/DOCUMENTS.md`.
+  Generation from structured content built by the caller, or by the `author_content` tool which
+  uses an LLM to author structured content from source material; PDF conversion depends on
+  LibreOffice being installed, with no fallback if it isn't — see `docs/DOCUMENTS.md`.
 - **Education/assignment workflows, multi-device orchestration.**
 
 See `docs/ROADMAP.md` for what's planned next and in what order.

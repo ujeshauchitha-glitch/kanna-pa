@@ -36,6 +36,7 @@ from tools import filesystem, process
 from tools.browser import tools as browser_tools
 from tools.computer import tools as computer_tools
 from tools.scaffold import tools as scaffold_tools
+from tools.authoring import tools as authoring_tools
 from vision import tools as vision_tools
 
 # Tools registered at REVIEW by default (the safe default — see each
@@ -74,6 +75,7 @@ def build_registry(*, gate: ApprovalGate | None = None,
     browser_tools.register_all(registry)
     vision_tools.register_all(registry)
     scaffold_tools.register_all(registry)
+    authoring_tools.register_all(registry)
     return registry
 
 

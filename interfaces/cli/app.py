@@ -85,8 +85,23 @@ def _cmd_ask(args: argparse.Namespace, kanna) -> int:
 
 
 def _cmd_voice(args: argparse.Namespace, kanna) -> int:
-    from interfaces.voice.listener import listen_loop, listen_once
     from core.errors import CapabilityUnavailable
+
+    try:
+        # sounddevice raises a bare OSError at import time when the
+        # PortAudio shared library isn't installed (the common case on a
+        # server/CI box with no audio subsystem at all), and any of the
+        # voice extra's packages (numpy, sounddevice, SpeechRecognition)
+        # raise ImportError if not installed at all — catch both so
+        # `kanna voice` fails the same clean, typed way every other
+        # optional-capability tool does, never a raw traceback. (The
+        # desktop app's voice button already handles this via its own
+        # broad except in interfaces/desktop/app.py::_record_and_transcribe;
+        # this is the equivalent for the CLI entry point.)
+        from interfaces.voice.listener import listen_loop, listen_once
+    except (ImportError, OSError) as exc:
+        print(f"error: voice interface unavailable: {exc}", file=sys.stderr)
+        return 1
 
     try:
         _check_mic()

@@ -4,6 +4,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -147,6 +149,28 @@ def test_scheduler_daemon_bounded_ticks(tmp_path):
     result = _run(["scheduler", "daemon", "--ticks", "2", "--interval-seconds", "0"], tmp_path)
     assert result.returncode == 0
     assert "one-off" in result.stdout
+
+
+def test_voice_fails_cleanly_without_audio_capability(tmp_path):
+    """On a machine missing a voice dependency (numpy/sounddevice/
+    SpeechRecognition not installed) or the PortAudio shared library
+    (this sandbox, most CI runners), `kanna voice` must fail the same
+    clean, typed way every other optional-capability tool does — a
+    message and exit code 1, never a raw traceback. This test only
+    asserts something when one of those is actually true here.
+    """
+    try:
+        import sounddevice
+        sounddevice.query_devices()
+    except (ImportError, OSError):
+        pass
+    else:
+        pytest.skip("voice deps + PortAudio both available on this machine; nothing to assert here")
+
+    result = _run(["voice"], tmp_path)
+    assert result.returncode == 1
+    assert "Traceback" not in result.stderr
+    assert "error:" in result.stderr
 
 
 def test_task_lifecycle(tmp_path):

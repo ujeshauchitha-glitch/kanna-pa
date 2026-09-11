@@ -28,6 +28,9 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser("init", help="Initialize Kanna's local database and config").set_defaults(
         func=_cmd_init)
 
+    subparsers.add_parser("app", help="Launch the desktop GUI app").set_defaults(
+        func=_cmd_app)
+
     ask_p = subparsers.add_parser("ask", help="Give Kanna a natural-language request")
     ask_p.add_argument("request")
     ask_p.set_defaults(func=_cmd_ask)
@@ -67,6 +70,12 @@ def _cmd_init(args: argparse.Namespace, kanna) -> int:
     print(f"  sandbox roots: {', '.join(str(r) for r in kanna.sandbox.roots)}")
     print(f"  planner: {type(kanna.planner).__name__}")
     return 0
+
+
+def _cmd_app(args: argparse.Namespace, kanna) -> int:
+    kanna.close()  # The app bootstraps its own instance
+    from interfaces.desktop.app import main as app_main
+    return app_main()
 
 
 def _cmd_ask(args: argparse.Namespace, kanna) -> int:

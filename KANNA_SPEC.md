@@ -37,6 +37,11 @@ files, runs code, queries its own database — rather than just describing steps
 
 ## What Kanna can do today (Phase 1 + Phase 2)
 
+- Use a native desktop task workspace (`python main.py app`) with source-file selection, real
+  execution progress, review dialogs, verified output paths, and voice-to-draft input. Desktop work
+  runs on one worker and persists sessions. Planning and source authoring honor the same configured
+  LLM provider. See `docs/DESKTOP.md` for availability and remaining limits.
+
 - Execute sequential workflows with typed references to earlier results, retain per-attempt evidence,
   and return actual artifact paths and deterministic finance messages. Failed postconditions cannot produce
   COMPLETE; process exit codes and claimed output existence are checked. See `docs/WORKFLOWS.md`

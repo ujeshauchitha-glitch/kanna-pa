@@ -77,10 +77,15 @@ main.py         `python main.py <command> ...`
 ```
 
 Directories present in the target structure but not yet populated (`runtimes/`, `work/`,
-`education/`, `devices/`, `interfaces/voice`, `interfaces/desktop`, `interfaces/mobile`) are
+`education/`, `devices/`, `interfaces/mobile`) are
 deliberately not created until there's real code to put in them — see `docs/ROADMAP.md`.
 `vision/` and `documents/` are populated as of Phase 2 — see `docs/VISION.md` and
 `docs/DOCUMENTS.md`.
+
+`interfaces/desktop` contains a Tk task workspace and a single-owner execution worker. Agent state,
+approval requests, results, and voice transcripts cross queues into the UI thread. AgentSession
+persists desktop requests/results. `core/llm/factory.py` selects providers consistently for planning,
+authoring, and assignment solving. See `docs/DESKTOP.md` for the lifecycle and permission boundaries.
 
 ## The agent loop
 

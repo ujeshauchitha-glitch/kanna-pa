@@ -157,6 +157,7 @@ Windows via PowerShell/.NET.
 
 ## Explicitly deferred, no strong opinion yet
 
-- Voice interface, desktop/mobile UI shells (`interfaces/voice`, `interfaces/desktop`,
-  `interfaces/mobile`) — CLI is the only interface until there's a concrete reason to add another.
+- Desktop and voice are implemented. The desktop workspace now supports serialized execution,
+  source selection, approvals, output files, and voice-to-draft. Next UI improvements: restored
+  session browsing, connection setup forms, and cancellable provider operations. Mobile UI is deferred.
 - Multi-device task routing beyond the capability-matching sketch in `docs/DEVICES.md`.

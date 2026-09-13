@@ -99,6 +99,10 @@ See `docs/RUNTIMES.md`.
 
 ## Project layout
 
+Launch the native task workspace with `python main.py app`: multiline requests, source-file
+selection, progress, approval dialogs, and verified output paths. Voice input fills a draft for
+review. See [desktop setup and behavior](docs/DESKTOP.md) for provider configuration and limitations.
+
 ```
 core/          agent loop, planner, tool protocol/registry, permissions, memory (SQLite), config,
                logging, events, LLM provider abstraction, task system

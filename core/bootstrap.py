@@ -17,7 +17,6 @@ from core.config import paths
 from core.config.settings import Settings, load_settings
 from core.errors import LLMUnavailable
 from core.events.bus import EventBus
-from core.llm.anthropic_provider import AnthropicProvider
 from core.logging.setup import setup_logging
 from core.memory.db import Database
 from core.memory.repositories.trust_rules import TrustRuleRepository
@@ -86,28 +85,10 @@ def build_planner(settings: Settings, *, force_rule_based: bool = False) -> Plan
     if force_rule_based or settings.llm_provider == "rule_based":
         return rule_based
 
-    provider = None
-
-    if settings.llm_provider == "litellm":
-        try:
-            from core.llm.litellm_provider import LiteLLMProvider
-            fallbacks = [m.strip() for m in settings.llm_fallback_models.split(",") if m.strip()]
-            provider = LiteLLMProvider(
-                model=settings.llm_model, max_tokens=settings.llm_max_tokens,
-                fallback_models=fallbacks,
-            )
-            provider._get_client()  # fail fast
-        except LLMUnavailable:
-            return rule_based
-
-    elif settings.llm_provider == "anthropic":
-        try:
-            provider = AnthropicProvider(model=settings.llm_model, max_tokens=settings.llm_max_tokens)
-            provider._get_client()  # fail fast
-        except LLMUnavailable:
-            return rule_based
-
-    if provider is None:
+    from core.llm.factory import build_provider
+    try:
+        provider = build_provider(settings)
+    except LLMUnavailable:
         return rule_based
 
     return LLMPlanner(provider, fallback=rule_based)

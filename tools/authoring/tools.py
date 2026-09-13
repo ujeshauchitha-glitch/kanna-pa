@@ -14,7 +14,7 @@ answer.
 from __future__ import annotations
 
 from core.errors import LLMUnavailable, SandboxViolation
-from core.llm.anthropic_provider import AnthropicProvider
+from core.llm.factory import build_provider
 from core.permissions.levels import PermissionLevel
 from core.tools.context import ToolContext
 from core.tools.registry import ToolRegistry
@@ -103,9 +103,7 @@ class AuthorContentTool:
         author = self._author
         if author is None:
             try:
-                provider = AnthropicProvider(
-                    model=ctx.settings.llm_model, max_tokens=ctx.settings.llm_max_tokens,
-                )
+                provider = build_provider(ctx.settings)
                 author = LLMAuthor(provider)
             except LLMUnavailable as exc:
                 return ToolResult.fail("llm_unavailable",
@@ -200,9 +198,7 @@ class AssignmentSolveTool:
         provider = self._provider
         if provider is None:
             try:
-                provider = AnthropicProvider(
-                    model=ctx.settings.llm_model, max_tokens=ctx.settings.llm_max_tokens,
-                )
+                provider = build_provider(ctx.settings)
             except LLMUnavailable as exc:
                 return ToolResult.fail("llm_unavailable",
                                        f"assignment solving requires an LLM provider: {exc}")

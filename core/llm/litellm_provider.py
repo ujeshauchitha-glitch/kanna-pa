@@ -43,13 +43,8 @@ class LiteLLMProvider:
         # ANTHROPIC_API_KEY, GEMINI_API_KEY, etc.) — litellm picks them
         # up automatically.  For Ollama, route through the OpenAI-compatible
         # /v1/ endpoint which handles Qwen's thinking tags properly.
-        if self.model.startswith("ollama/"):
-            import os
-            ollama_base = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
-            # Rewrite "ollama/model" to "openai/model" so litellm hits /v1/
-            self.model = "openai/" + self.model.split("/", 1)[1]
-            litellm.api_base = f"{ollama_base}/v1"
-            litellm.api_key = "ollama"  # Ollama doesn't need a real key
+        # Endpoint and credentials belong to each call, not module globals:
+        # a cloud fallback must never inherit Ollama's local endpoint/key.
 
         self._client = litellm
         return self._client
@@ -93,8 +88,12 @@ class LiteLLMProvider:
 
         for model in models_to_try:
             try:
-                kwargs["model"] = model
-                response = litellm.completion(**kwargs)
+                call_kwargs = {**kwargs, "model": model}
+                if model.startswith("ollama/"):
+                    call_kwargs.update(model="openai/" + model.split("/", 1)[1],
+                        api_base=os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/") + "/v1",
+                        api_key="ollama")
+                response = litellm.completion(**call_kwargs)
                 return self._parse_response(response)
             except Exception as exc:
                 last_error = exc

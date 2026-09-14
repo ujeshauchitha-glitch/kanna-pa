@@ -1,0 +1,129 @@
+# Testing
+
+## Running the suite
+
+```bash
+pip install -e ".[dev]"   # or just: pip install pytest
+python -m pytest -q
+```
+
+No network access and no API key are required — every test that would otherwise need an LLM uses
+`core.llm.fake.FakeProvider`/`core.llm.null.NullProvider`, every test that would otherwise need
+vision uses `vision.ocr.fake.FakeOCRProvider`/`vision.document.fake.FakeDocumentProvider`, and the
+process-tool tests invoke the running `sys.executable` with an explicit test-local allowlist, rather
+than assuming a `python3` alias exists on Windows. Document-generation
+tests (`test_documents_*.py`) do exercise the real `python-docx`/`python-pptx`/`reportlab` libraries
+(they're pure offline/deterministic — no network either way) but use `pytest.importorskip` so the
+suite degrades to skipping them, rather than failing, if `kanna[documents]` isn't installed; it is
+included in the `dev` extra, so `pip install -e ".[dev]"` runs the full suite.
+`test_documents_convert.py`'s real-conversion tests separately `skipif` on no LibreOffice binary
+being on PATH — install `libreoffice-writer`/`libreoffice-impress` (not just `libreoffice-core`, which
+alone can't actually convert anything — see `docs/DOCUMENTS.md`) to run those for real.
+
+`tests/test_fedora_agent.py` exercises the real `FedoraAgent` against a live X11 session — it needs
+`DISPLAY` plus `xdotool`/`scrot`/`xclip`, none of which exist by default in most environments, so the
+whole file is `pytest.mark.skipif`'d when `tools.computer.fedora.is_available()` is `False`. Locally,
+set up a virtual display to run it for real:
+
+```bash
+apt-get install -y xvfb xdotool scrot xclip   # dnf install on Fedora
+Xvfb :99 -screen 0 1280x800x24 &
+DISPLAY=:99 python -m pytest -q tests/test_fedora_agent.py
+```
+
+CI does exactly this (see `.github/workflows/tests.yml`: installs the same four packages, runs the
+whole suite under `xvfb-run`), so this file runs for real on every push rather than perpetually
+skipping — see `docs/DEVICES.md` for what it actually validates and the real bug it caught.
+`tests/test_computer_tools.py` covers the tool layer (schema, permissions, error translation) via
+`tools.computer.fake.FakeComputerAgent` instead, so that coverage never depends on a display.
+
+`tests/test_browser_playwright.py` similarly exercises the real `PlaywrightBrowserAgent` against a
+headless Chromium instance, but skips per-test (a fixture calls `pytest.skip()` if launching actually
+fails) rather than a module-level `skipif` — see `docs/BROWSER.md` for why. CI installs a real
+Chromium build (`python -m playwright install --with-deps chromium`) so this file also runs for real
+on every push; locally, without any browser installed, it skips cleanly.
+`tests/test_browser_tools.py` covers the tool layer via `tools.browser.fake.FakeBrowserAgent` instead,
+so that coverage never depends on a real browser.
+
+The original 367-test suite also covers optional host capabilities; passing/skipped counts vary by
+installed runtimes and display/browser availability. The sequential workflow milestone adds
+`test_workflows.py`: real filesystem/PDF/DOCX flows with scripted planning/vision, backward bindings,
+bad bindings and postconditions, permission/sandbox enforcement, correction history, real process
+exit verification, finance result messages, and scheduled terminal-state propagation. Scheduler
+tests cover repeated ticks and legacy timezone-aware job timestamps. Use `pytest -q -rs` to see
+which optional capabilities were actually exercised; scripted provider tests do not establish live
+model or OCR quality.
+
+## Layout
+
+| File | Covers |
+|---|---|
+| `test_schema.py` | `Schema` validation (types, enum, bounds, pattern, nested object/array) + JSON-Schema export |
+| `test_registry.py` | Tool registration, invocation pipeline (validate → permission → execute → validate → log), exception containment, output-schema enforcement |
+| `test_tool_result.py` | `ToolResult` construction helpers |
+| `test_permissions.py` | `PermissionPolicy` default decisions per level, rule overrides, `DenyAllGate`/`PreApprovedGate` |
+| `test_sandbox.py` | Path traversal, absolute-path escape, symlink escape, multi-root resolution |
+| `test_db.py` | Migration application + idempotency, foreign-key enforcement, file-backed persistence across connections |
+| `test_repositories.py` | Session/task/execution-log repository CRUD |
+| `test_fs_tools.py` | Every filesystem tool's success and failure paths, sandbox rejection |
+| `test_process_tool.py` | stdout/stderr/exit-code capture, executable allowlist enforcement, timeout, output truncation, `make` present in the default allowlist |
+| `test_money.py` | Parsing (symbols, codes, thousands separators, embedded in a sentence), rounding, currency-mismatch errors |
+| `test_finance_nlp.py` | The spec's own worked example + merchant/date/category-hint extraction, query period parsing |
+| `test_finance_transactions.py` | Transaction creation, category inference, date-boundary filtering, monthly/category totals, multi-currency separation |
+| `test_finance_budgets.py` | Budget status under/over budget, spending alerts, category exclusion |
+| `test_finance_recurring.py` | Every recurrence frequency, explicit month-end rollover (incl. leap year), applying due recurring expenses |
+| `test_finance_csv.py` | Import success/error-per-row, dedup, export round-trip, custom column mapping |
+| `test_finance_dates.py` | Date-string normalization across every supported format, unrecognized-format error |
+| `test_vision_ocr.py` | `FakeOCRProvider` scripted results/responder callback |
+| `test_vision_document.py` | `FakeDocumentProvider` + `parse_receipt_json` (valid, all-null, wrong-typed fields, malformed line items) as a pure function |
+| `test_vision_statement.py` | `FakeDocumentProvider` statement scripting + `parse_statement_json` (valid, all-null, wrong-typed fields, non-object rows skipped without losing valid ones, unrecognized `direction` rejected) as a pure function |
+| `test_vision_structure.py` | `FakeDocumentProvider` structure scripting + `parse_structure_json` (valid, all-null, wrong-typed fields, non-object sections skipped without losing valid ones, missing/invalid `level` defaults to 1, malformed table tolerated) as a pure function |
+| `test_vision_tools.py` | `vision_extract_structure` tool: sandboxed read, mime-type guessing/override, table key omitted (not null) when absent, `VisionUnavailable`/generic provider failure translation |
+| `test_finance_receipt_import.py` | Receipt → transaction: happy path + category inference, missing/unparseable amount, missing/unparseable date fallback, currency fallback, dedup, vision-provider failure — all via `FakeDocumentProvider` |
+| `test_finance_receipt_tool.py` | `finance_import_receipt` tool: sandboxed read, mime-type guessing/override, unsupported file type, extraction failure, duplicate reporting |
+| `test_finance_statement_import.py` | Statement → transactions: debit-only import, credit/unclear-direction rows reported not imported, missing/unparseable amount, date fallback, currency fallback, dedup, no-transactions-found and provider-failure as document-level errors, multiple debits all imported |
+| `test_finance_statement_tool.py` | `finance_import_statement` tool: partial-success reporting (unlike the all-or-nothing receipt tool), all-credits statement still a successful call with nothing created, sandboxing, mime-type override |
+| `test_planner.py` | Rule-based intent recognition + failure, LLM planner validation/fallback (via `FakeProvider`), `LLMPlanner.revise_step` (corrected args, prompt content, unknown tool/no-JSON/no-args-key/invalid-revised-args/LLM-unavailable all raising `PlanningError`, `RuleBasedPlanner` correctly lacking the capability) |
+| `test_agent_loop.py` | Happy path, transient-failure-then-correction, permanent failure reporting FAILED (never a fabricated COMPLETE), unplannable request reporting BLOCKED, plan/step persistence, LLM-driven correction actually using the planner's revised args (not a blind retry), falling back to identical retry when revision fails or the planner has no `revise_step` capability, cooperative cancellation (before the next step, before the next correction retry, cancelled-before-anything-ran, omitting `cancel` behaves exactly as before) |
+| `test_scheduler.py` | Pure due-time computation for all three schedule kinds (including the spec's "every two weeks on Tuesday" example), `Scheduler.tick()` execution/skip/failure recording, `SchedulerDaemon` (bounded `run_n_ticks` sleeps between-not-after ticks, `run_forever` actually stops on `stop()`, `install_signal_handlers` wires SIGINT to a real stop) |
+| `test_documents_model.py` | `build_document()` — the pure "args dict → `Document`" conversion (full content, empty-string-to-`None`, default heading level) |
+| `test_documents_docx.py` | `render_docx` end-to-end, read back with `python-docx` to assert real structure (styles, table cells), not just file existence |
+| `test_documents_pptx.py` | `render_pptx` end-to-end, incl. the table-only-section-must-keep-its-heading regression (see `docs/DOCUMENTS.md`) |
+| `test_documents_pdf.py` | `render_pdf` end-to-end (valid `%PDF-` header, non-trivial size), incl. a regression test for XML-escaping special characters and for out-of-range heading levels |
+| `test_documents_tools.py` | All three `document_generate_*` tools: creation, sandbox rejection, overwrite protection, directory-path rejection; `document_convert_to_pdf`'s tool layer via a monkeypatched `convert_to_pdf` (no LibreOffice needed) |
+| `test_documents_convert.py` | The real `convert_to_pdf()`: real DOCX/PPTX converted by real `soffice`, output landing at the exact requested `dest` (not soffice's own `<stem>.pdf` naming), missing source, timeout, and a `shutil.which`-monkeypatched "no binary" case that runs regardless of whether LibreOffice is installed |
+| `test_scaffold_tools.py` | `project_scaffold` tool layer: creation per language, `project_name` defaulting vs. override, overwrite refusal/acceptance, sandbox rejection, non-directory destination, unsupported language, permission level |
+| `test_scaffold_build.py` | Every generated skeleton built and run for real (`make`/`make run` for C/C++, `javac`+`java` for Java), `make clean` actually removing the binary, and an end-to-end `project_scaffold` → `process_run` (`make`) proof — skipped per-language if that compiler/`make` isn't installed |
+| `test_bootstrap.py` | `build_registry()` includes every subsystem's tools; `default_policy()`'s create-vs-overwrite rule, generalized to cover `fs_write_file` and all three `document_generate_*` tools |
+| `test_computer_null.py` | Every `NullComputerAgent` method raises `CapabilityUnavailable` with a real reason |
+| `test_fedora_agent.py` | The real `FedoraAgent` against a live X11 session (see above) — screenshot validity, a real click→type→Ctrl-D→read-the-file round trip, clipboard round trip, open/close application, honest failures with no display or a missing binary |
+| `test_computer_selection.py` | `get_computer_agent()` picks `FedoraAgent` vs `NullComputerAgent` correctly |
+| `test_computer_tools.py` | All 11 `computer_*` tools via `FakeComputerAgent`: argument passing, permission levels, `CapabilityUnavailable`/`ValueError` → `ToolResult.fail` translation, default-agent fallback |
+| `test_phone_agent.py` | `AdbPhoneAgent`: `is_available()`/`list_devices()` for real against the genuinely-installed `adb` binary (unmocked — no device attached, so it must honestly report none); every method's command construction/output-parsing against a mocked `subprocess.run` (tap/swipe/text/keyevent, screenshot PNG validation, `wm size`/`dumpsys window` parsing, package resolution, timeout/missing-binary/no-device gating). **Not** tested against a real Android device or emulator — see `docs/DEVICES.md` for why and what that means |
+| `test_browser_playwright.py` | The real `PlaywrightBrowserAgent` against a headless Chromium instance (see above) — navigate/get_text/screenshot validity, a real click-mutates-the-DOM round trip, fill + read-back, go_back, current_url, honest failures for a missing selector or a missing `playwright` package |
+| `test_browser_tools.py` | All 6 `browser_*` tools via `FakeBrowserAgent`: argument passing, resulting-observation surfacing, permission levels, `BrowserUnavailable`/`BrowserActionFailed` → `ToolResult.fail` translation, default-agent fallback |
+| `test_trust.py` | `rule_matches` as a pure function (wrong tool, empty-pattern-matches-any, per-key matching, missing key, extra call args ignored), `TrustRuleRepository` CRUD (the audit trail itself), `TrustStoreGate` (a matching rule approves without consulting the fallback, no match falls through, no rules at all delegates entirely), and one `bootstrap()` integration test proving a granted rule actually changes what a real `ToolRegistry.invoke()` does |
+| `test_cli.py` | Subprocess smoke tests for every top-level command, including the `trust add`/`list`/`remove` lifecycle, rejecting an unknown tool name, the `scheduler add`/`list`/`tick`/`remove` lifecycle, rejecting a schedule missing a required field, and `scheduler daemon --ticks` |
+
+## Fixtures (`tests/conftest.py`)
+
+`db` (in-memory, migrated), `sandbox` (scoped to `tmp_path`), `settings`, `event_bus`, `ctx` (a real
+`ToolContext` with a real session row, so FK constraints hold), `registry`/`strict_registry` (every
+registered tool, including `finance_import_receipt`/`finance_import_statement`, with a
+`PreApprovedGate` or `DenyAllGate` respectively — note those two still need a `provider=` override or
+`ANTHROPIC_API_KEY` to actually run; tests that exercise them construct the tool directly with a
+`FakeDocumentProvider` rather than going through this fixture).
+
+## Principles for adding tests
+
+- **Determinism first.** Finance and scheduler logic must never depend on wall-clock time implicitly
+  — pass an explicit `now`/`as_of_date` everywhere it matters (see how every finance/scheduler test
+  does this).
+- **No network.** Anything LLM-shaped goes through `FakeProvider`.
+- **Test the failure path, not just the happy path.** Every tool test file includes at least one
+  rejected-input and one not-found/already-exists case; the agent-loop tests specifically assert that
+  a permanently-failing step is reported as FAILED and never silently reported as success — that
+  guarantee is the whole point of the verifier design and deserves its own explicit test.
+- Run `python -m pytest -q` before considering any change complete; a change that breaks an existing
+  test is not done until the test is fixed or the test's assumption is deliberately and explicitly
+  updated.

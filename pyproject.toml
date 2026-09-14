@@ -1,0 +1,50 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kanna"
+version = "0.1.0"
+description = "Kanna — a personal AI work-execution agent"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Proprietary" }
+dependencies = []
+
+[project.optional-dependencies]
+# LLM providers. Core works without any of them (rule-based planner +
+# finance NLP are pure stdlib and always available).
+#   litellm  — universal provider (100+ models: OpenAI, Anthropic, Google,
+#              local, free tiers) with automatic fallback. Recommended.
+#   anthropic — direct Anthropic SDK (legacy, use litellm instead).
+llm = ["litellm>=1.50", "anthropic>=0.40"]
+# Anthropic-vision-backed OCR/receipt extraction (vision/ocr,
+# vision/document). Needs the same 'anthropic' package as the llm extra;
+# listed again here so `pip install kanna[vision]` alone is sufficient.
+# 'pillow' isn't imported by any Phase 2 code yet but is kept for planned
+# image-editing/validation work.
+vision = ["anthropic>=0.40", "pillow"]
+# Document generation (documents/docx_writer, pptx_writer, pdf_writer).
+# Pure offline libraries — no network, no API key.
+documents = ["python-docx>=1.0", "python-pptx>=1.0", "reportlab>=4.0"]
+# Browser automation (tools/browser/playwright_backend.py). After
+# installing this extra, a Chromium binary is still needed — run
+# `playwright install chromium` (or `--with-deps chromium` on a bare CI
+# image) once. `PlaywrightBrowserAgent` raises `BrowserUnavailable`
+# rather than crashing if either the package or the binary is missing.
+browser = ["playwright>=1.40"]
+voice = ["SpeechRecognition>=3.10", "sounddevice>=0.4", "numpy>=1.24"]
+# 'python-xlib' is X11-only (a no-op install elsewhere) and backs the
+# global-hotkey X11 backend (interfaces/desktop/hotkey.py); it's pure
+# Python with no compiled/system dependency beyond an X server.
+desktop = ["pystray>=0.19", "Pillow>=10.0", "python-xlib>=0.33"]
+dev = ["pytest>=8", "python-docx>=1.0", "python-pptx>=1.0", "reportlab>=4.0", "playwright>=1.40", "SpeechRecognition>=3.10", "sounddevice>=0.4", "numpy>=1.24", "Pillow>=10.0", "python-xlib>=0.33"]
+
+[project.scripts]
+kanna = "main:main"
+
+[tool.setuptools.packages.find]
+include = ["core*", "tools*", "finance*", "automation*", "interfaces*", "vision*", "documents*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

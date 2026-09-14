@@ -1,0 +1,21 @@
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+
+# Kanna's local data — never committed
+/data/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+kanna.toml
+.env
+
+# Test temp directory
+pytest-tmp/

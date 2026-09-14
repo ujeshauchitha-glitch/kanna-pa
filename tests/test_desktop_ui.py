@@ -129,6 +129,18 @@ def test_approval_resolved_for_a_different_request_leaves_open_dialog_alone(app)
     dialog.destroy()
 
 
+def test_startup_button_opens_and_reuses_dialog(app):
+    app._show_startup()
+    first = app.startup_dialog
+    assert first is not None
+    assert first.top.winfo_exists()
+
+    app._show_startup()  # a second click focuses the same dialog, no duplicate
+    assert app.startup_dialog is first
+
+    first.top.destroy()
+
+
 def test_voice_only_fills_draft(app):
     app.worker.events.put(("transcript", "Review these sources"))
     app._poll()

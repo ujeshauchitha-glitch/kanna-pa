@@ -14,6 +14,7 @@ from interfaces.desktop.files import show_in_folder
 from interfaces.desktop.history_dialog import HistoryDialog
 from interfaces.desktop.hotkey import configured_hotkey, create_hotkey_backend
 from interfaces.desktop.singleton import SingleInstanceGuard
+from interfaces.desktop.startup_dialog import StartupDialog
 from interfaces.desktop.worker import DesktopWorker, compose_request
 
 BG = "#10151d"
@@ -38,6 +39,7 @@ class KannaApp:
         self.info = {}
         self.db = None
         self.history_dialog = None
+        self.startup_dialog = None
         self._approval_dialog = None
         self._approval_request = None
         self.busy = False
@@ -78,7 +80,8 @@ class KannaApp:
         self._label(top, "   YOUR TASK WORKSPACE", 9, MUTED).pack(side=tk.LEFT, pady=(7, 0))
         self._button(top, "Quit", self._quit).pack(side=tk.RIGHT)
         self._button(top, "Connection & access", self._show_info).pack(side=tk.RIGHT, padx=8)
-        self._button(top, "Task history", self._show_history).pack(side=tk.RIGHT)
+        self._button(top, "Task history", self._show_history).pack(side=tk.RIGHT, padx=8)
+        self._button(top, "Startup", self._show_startup).pack(side=tk.RIGHT)
 
         body = tk.Frame(self.root, bg=BG)
         body.pack(fill=tk.BOTH, expand=True, padx=24, pady=(0, 20))
@@ -389,6 +392,11 @@ class KannaApp:
         roots = "\n".join(self.info.get("roots", [])) or "Starting…"
         messagebox.showinfo("Connection & access", f"Planner: {self.info.get('planner', 'Starting…')}\nConfigured model: {self.info.get('model', '—')}\n\nWorkspace folders:\n{roots}\n\nLLM configuration: KANNA_LLM_PROVIDER and KANNA_LLM_MODEL, or ~/.kanna/config.toml. Restart after changes. A configured model is not a guarantee that its server is reachable.", parent=self.root)
 
+    @staticmethod
+    def _palette():
+        return {"BG": BG, "PANEL": PANEL, "FIELD": FIELD, "TEXT": TEXT, "MUTED": MUTED,
+                "ACCENT": ACCENT, "ERROR": ERROR}
+
     def _show_history(self):
         if self.db is None:
             messagebox.showinfo("Task history", "Kanna is still starting; try again in a moment.", parent=self.root)
@@ -397,9 +405,14 @@ class KannaApp:
             self.history_dialog.top.lift()
             self.history_dialog.top.focus_set()
             return
-        palette = {"BG": BG, "PANEL": PANEL, "FIELD": FIELD, "TEXT": TEXT, "MUTED": MUTED,
-                   "ACCENT": ACCENT, "ERROR": ERROR}
-        self.history_dialog = HistoryDialog(self.root, self.db, palette)
+        self.history_dialog = HistoryDialog(self.root, self.db, self._palette())
+
+    def _show_startup(self):
+        if self.startup_dialog is not None and self.startup_dialog.top.winfo_exists():
+            self.startup_dialog.top.lift()
+            self.startup_dialog.top.focus_set()
+            return
+        self.startup_dialog = StartupDialog(self.root, self._palette())
 
     def _copy_result(self):
         if self.last_result:

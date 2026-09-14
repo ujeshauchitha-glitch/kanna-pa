@@ -33,8 +33,18 @@ display, an invalid `KANNA_DESKTOP_HOTKEY` spec — is logged once into the task
 panel on startup, not silently swallowed; the app remains fully usable by launching it directly either
 way. macOS platform adapters are not implemented; nothing claims otherwise.
 
-No startup-at-login integration exists yet (Task Scheduler / systemd user service / launchd are the
-natural per-platform mechanisms; see `docs/ROADMAP.md`).
+## Startup at login
+
+The **Startup** button opens a dialog for the standard *per-user* launch-at-login mechanism —
+`interfaces/desktop/startup.py`, never triggered except by clicking Enable/Disable there, never
+automatic. Windows: a value under `HKCU\...\CurrentVersion\Run` (via the stdlib `winreg`, no admin
+rights, no new dependency). Linux: an XDG autostart `.desktop` file under `~/.config/autostart/`
+(no root, honored uniformly by GNOME/KDE/XFCE session startup). Both relaunch the exact running
+install (`sys.executable` + this checkout's `main.py app`, using `pythonw.exe` on Windows when
+present to avoid a flashing console window) — if `main.py` can't be located (an unusual packaging
+layout), Enable fails with that reason rather than registering a broken command. Disable is
+idempotent — calling it when nothing is registered is a harmless no-op, not an error. macOS is not
+implemented; the dialog says so and disables both buttons rather than pretending.
 
 ## Working on a task
 
@@ -158,3 +168,15 @@ real worker and real dialog — cancelling denies a pending approval without shu
 worker, the main-window Cancel button reaches `worker.cancel()`, and the dialog's own Cancel task
 button does too. Live-verified by hand: launched the real app, opened a REVIEW approval dialog for
 real, clicked Cancel task, and confirmed the target file was never actually written.
+
+`test_desktop_startup.py` exercises both real backends without ever touching a real machine's
+actual startup registration: the Windows one against an injected in-memory fake `winreg` (the real
+module doesn't exist on non-Windows, and even on Windows a test must never write the user's actual
+Startup entry), the Linux one against a `tmp_path` `XDG_CONFIG_HOME`, never `~/.config/autostart`
+— enable/disable round-trip, disable-when-never-enabled is a no-op, a missing-`main.py` failure is
+reported not silently swallowed, and the `Exec=`/registry-value quoting is checked as a pure
+function. `test_desktop_startup_dialog.py` covers the dialog's own state machine (button
+enabled/disabled per supported/enabled state, a failed enable shows the real error and does not
+claim success) against a small in-memory fake backend. Live-verified by hand: opened the real
+dialog in the real app, clicked Enable, confirmed the real `~/.config/autostart/kanna.desktop` file
+was written with the correct `Exec=` line, clicked Disable, confirmed it was removed.

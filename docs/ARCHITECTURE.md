@@ -89,7 +89,9 @@ persists desktop requests/results. `singleton.py` is a real, OS-level single-ins
 loopback socket, not a UI check); `hotkey.py` is the cross-platform global-hotkey abstraction
 (real Windows and X11 backends, honest `NullHotkeyBackend` elsewhere). `history_dialog.py` browses
 past runs read-only via `core/agent/history.py`, a query layer over the same `plans`/`plan_steps`
-evidence the agent loop already persists — no new schema, no rerun. `core/llm/factory.py` selects
+evidence the agent loop already persists — no new schema, no rerun. `startup.py` +
+`startup_dialog.py` are the per-user launch-at-login backends (Windows `winreg` Run key, Linux XDG
+autostart), only ever invoked from an explicit Enable/Disable click. `core/llm/factory.py` selects
 providers consistently for planning, authoring, and assignment solving. See `docs/DESKTOP.md` for the
 lifecycle and permission boundaries.
 

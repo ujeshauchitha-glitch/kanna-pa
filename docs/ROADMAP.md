@@ -152,15 +152,18 @@ structured content from DOCX files, and `assignment_solve` provides end-to-end q
 and answering with source-grounded answers. `WindowsAgent` provides real desktop automation on
 Windows via PowerShell/.NET. The desktop task workspace now has a real single-instance guard, a
 cross-platform global hotkey (Windows + X11 Linux), a task history browser over the agent loop's own
-persisted plan/step evidence (no new schema, no rerun), and cooperative cancellation (`AgentLoop.run`
+persisted plan/step evidence (no new schema, no rerun), cooperative cancellation (`AgentLoop.run`
 checks a `threading.Event` before the next step/retry, never mid-call; both LLM providers now carry
-a real request timeout so a hung model server can't defeat it) — see `docs/DESKTOP.md`.
+a real request timeout so a hung model server can't defeat it), and per-user startup-at-login
+(Windows `HKCU` Run key / Linux XDG autostart, explicit Enable/Disable, never automatic) — see
+`docs/DESKTOP.md`. **The desktop-access milestone from the original brief is now complete.**
 
-1. **Startup-at-login integration** for the desktop app (per-user, explicit enable/disable, no admin
-   privileges required, documented uninstall). The natural next piece now that launching,
-   single-instancing, history, and cancellation are all solid.
-2. **Phone/device backend** and the full capability-based router across all registered devices,
-   now that Fedora and Windows backends have validated the `ComputerAgent` interface in practice.
+1. **Phone/device backend** and the full capability-based router across all registered devices,
+   now that Fedora and Windows backends have validated the `ComputerAgent` interface in practice —
+   the next-highest-leverage item now that reliable desktop access is done end to end.
+2. **Connection setup forms** in the desktop UI — provider/model configuration is currently
+   `KANNA_LLM_PROVIDER`/`KANNA_LLM_MODEL` env vars or `config.toml`, read at startup only; no
+   in-app way to configure or switch it without a restart.
 
 ## Explicitly deferred, no strong opinion yet
 
@@ -168,7 +171,7 @@ a real request timeout so a hung model server can't defeat it) — see `docs/DES
   source selection, approvals, output files, voice-to-draft, a real single-instance guard, a real
   cross-platform global hotkey (Windows + X11 Linux; Wayland and macOS honestly report unavailable
   rather than faking it), a read-only task history browser (`core/agent/history.py` +
-  `interfaces/desktop/history_dialog.py`), and cooperative cancellation — see `docs/DESKTOP.md`.
-  Next UI improvements: per-user login-time startup registration and connection setup forms.
-  Mobile UI is deferred.
+  `interfaces/desktop/history_dialog.py`), cooperative cancellation, and per-user startup-at-login
+  (`interfaces/desktop/startup.py` + `startup_dialog.py`) — see `docs/DESKTOP.md`. Next UI
+  improvement: connection setup forms. Mobile UI is deferred.
 - Multi-device task routing beyond the capability-matching sketch in `docs/DEVICES.md`.

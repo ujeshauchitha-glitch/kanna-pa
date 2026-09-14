@@ -54,8 +54,13 @@ Paths are supplied to the planner as source references; adding a file does not s
 sandbox or read/upload its contents. Files outside the workspace must first be copied into it.
 
 The connection panel displays the selected planner/model and registered tool count. These indicate
-configuration, not verified remote availability. Connection & access shows the actual workspace
-roots and configuration instructions. Restart after changing provider settings.
+configuration, not verified remote availability. **Connection & access** shows the actual workspace
+roots plus an editable LLM provider/model/fallback-models/timeout form
+(`interfaces/desktop/connection_dialog.py`) that writes straight to `config.toml`
+(`core.config.settings.update_config_file` — a narrow scalar-line writer that preserves every other
+line in the file exactly, not a general TOML writer). Saving never takes effect on the
+already-running worker (`bootstrap()` only runs once per launch) — the dialog says so explicitly
+("Restart Kanna ... to use it") rather than implying a live reload happened.
 
 The progress area shows real agent state events and tool names. The result retains complete/failed/
 blocked distinctions and the draft stays available after execution. Copy result copies the last
@@ -180,3 +185,13 @@ enabled/disabled per supported/enabled state, a failed enable shows the real err
 claim success) against a small in-memory fake backend. Live-verified by hand: opened the real
 dialog in the real app, clicked Enable, confirmed the real `~/.config/autostart/kanna.desktop` file
 was written with the correct `Exec=` line, clicked Disable, confirmed it was removed.
+
+`test_settings.py` covers `update_config_file` directly — creating a new file, updating one key
+while leaving every other line (including comments) untouched, appending a key not already present,
+escaping embedded quotes/backslashes (round-tripped back through real `tomllib`, not just string
+comparison), no stray `.tmp` file left behind, and a full round trip through `load_settings()`.
+`test_desktop_connection_dialog.py` exercises the real dialog (fields prefilled from real
+`Settings`, Save against a real `tmp_path` config file — not a mocked `update_config_file` — an
+invalid timeout or empty model rejected with nothing written). Live-verified by hand: opened the
+real dialog in the real app, edited the model field, clicked Save, and confirmed the real
+`config.toml` was updated correctly with every other key preserved exactly.

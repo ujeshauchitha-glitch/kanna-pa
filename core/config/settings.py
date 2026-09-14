@@ -4,12 +4,17 @@ Layered resolution, lowest to highest priority:
 
     built-in defaults  →  config.toml (KANNA_CONFIG_PATH or ~/.kanna/config.toml)  →  KANNA_* env vars
 
-Only the stdlib is used (`tomllib`, read-only — Kanna never needs to
-*write* TOML, so no third-party writer is required).
+Only the stdlib is used (`tomllib`, read-only for the *layered-resolution*
+reader above). `update_config_file()` is a separate, deliberately narrow
+writer for the one thing the desktop UI's connection settings form needs:
+setting specific top-level scalar keys without disturbing anything else
+already in the file — not a general TOML writer, so still no third-party
+dependency.
 """
 from __future__ import annotations
 
 import os
+import re
 import tomllib
 from dataclasses import dataclass, field, fields
 from pathlib import Path
@@ -80,6 +85,49 @@ def _load_toml(path: Path) -> dict[str, Any]:
         return {}
     with path.open("rb") as fh:
         return tomllib.load(fh)
+
+
+_TOML_KEY_RE = re.compile(r"^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=")
+
+
+def _toml_scalar_line(key: str, value: Any) -> str:
+    if isinstance(value, bool):
+        return f"{key} = {'true' if value else 'false'}"
+    if isinstance(value, (int, float)):
+        return f"{key} = {value}"
+    escaped = str(value).replace("\\", "\\\\").replace('"', '\\"')
+    return f'{key} = "{escaped}"'
+
+
+def update_config_file(path: Path, updates: dict[str, Any]) -> None:
+    """Set specific top-level scalar keys in `path`'s TOML, in place.
+
+    Every other line — other keys, comments, blank lines, `[tables]` —
+    is preserved exactly as written. A key already present is replaced
+    on its existing line; a new key is appended. This intentionally
+    does not parse or write tables/arrays/multi-line values: every
+    setting `load_settings()` reads is a plain top-level scalar (see
+    `_DEFAULTS` above), and that's the only thing this ever needs to
+    write. The write is atomic (write to a temp file, then replace) so
+    a crash mid-write can't leave a half-written config behind.
+    """
+    path = Path(path)
+    lines = path.read_text().splitlines() if path.exists() else []
+    remaining = dict(updates)
+    out: list[str] = []
+    for line in lines:
+        match = _TOML_KEY_RE.match(line)
+        if match and match.group(1) in remaining:
+            out.append(_toml_scalar_line(match.group(1), remaining.pop(match.group(1))))
+        else:
+            out.append(line)
+    for key, value in remaining.items():
+        out.append(_toml_scalar_line(key, value))
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text("\n".join(out) + ("\n" if out else ""))
+    tmp.replace(path)
 
 
 def load_settings(config_path: Path | None = None) -> Settings:

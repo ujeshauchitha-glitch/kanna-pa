@@ -154,16 +154,18 @@ Windows via PowerShell/.NET. The desktop task workspace now has a real single-in
 cross-platform global hotkey (Windows + X11 Linux), a task history browser over the agent loop's own
 persisted plan/step evidence (no new schema, no rerun), cooperative cancellation (`AgentLoop.run`
 checks a `threading.Event` before the next step/retry, never mid-call; both LLM providers now carry
-a real request timeout so a hung model server can't defeat it), and per-user startup-at-login
-(Windows `HKCU` Run key / Linux XDG autostart, explicit Enable/Disable, never automatic) — see
-`docs/DESKTOP.md`. **The desktop-access milestone from the original brief is now complete.**
+a real request timeout so a hung model server can't defeat it), per-user startup-at-login
+(Windows `HKCU` Run key / Linux XDG autostart, explicit Enable/Disable, never automatic), and an
+editable connection-settings form (provider/model/fallback/timeout, writing to `config.toml` via a
+narrow scalar-line writer, `core.config.settings.update_config_file`) — see `docs/DESKTOP.md`.
+**The desktop-access milestone from the original brief is now complete**, including the connection
+setup forms called out as a follow-up.
 
-1. **Phone/device backend** and the full capability-based router across all registered devices,
-   now that Fedora and Windows backends have validated the `ComputerAgent` interface in practice —
-   the next-highest-leverage item now that reliable desktop access is done end to end.
-2. **Connection setup forms** in the desktop UI — provider/model configuration is currently
-   `KANNA_LLM_PROVIDER`/`KANNA_LLM_MODEL` env vars or `config.toml`, read at startup only; no
-   in-app way to configure or switch it without a restart.
+1. **Phone/device backend** and the full capability-based router across all registered devices, now
+   that Fedora and Windows backends have validated the `ComputerAgent` interface in practice — the
+   next-highest-leverage item, and the only one left from the original brief's device-backend list.
+   Needs real hardware or an emulator to validate against before it can be built to the same bar
+   every other capability here was held to; none is available in this build environment yet.
 
 ## Explicitly deferred, no strong opinion yet
 
@@ -171,7 +173,7 @@ a real request timeout so a hung model server can't defeat it), and per-user sta
   source selection, approvals, output files, voice-to-draft, a real single-instance guard, a real
   cross-platform global hotkey (Windows + X11 Linux; Wayland and macOS honestly report unavailable
   rather than faking it), a read-only task history browser (`core/agent/history.py` +
-  `interfaces/desktop/history_dialog.py`), cooperative cancellation, and per-user startup-at-login
-  (`interfaces/desktop/startup.py` + `startup_dialog.py`) — see `docs/DESKTOP.md`. Next UI
-  improvement: connection setup forms. Mobile UI is deferred.
+  `interfaces/desktop/history_dialog.py`), cooperative cancellation, per-user startup-at-login
+  (`interfaces/desktop/startup.py` + `startup_dialog.py`), and an editable connection settings form
+  (`interfaces/desktop/connection_dialog.py`) — see `docs/DESKTOP.md`. Mobile UI is deferred.
 - Multi-device task routing beyond the capability-matching sketch in `docs/DEVICES.md`.

@@ -91,7 +91,11 @@ loopback socket, not a UI check); `hotkey.py` is the cross-platform global-hotke
 past runs read-only via `core/agent/history.py`, a query layer over the same `plans`/`plan_steps`
 evidence the agent loop already persists — no new schema, no rerun. `startup.py` +
 `startup_dialog.py` are the per-user launch-at-login backends (Windows `winreg` Run key, Linux XDG
-autostart), only ever invoked from an explicit Enable/Disable click. `core/llm/factory.py` selects
+autostart), only ever invoked from an explicit Enable/Disable click. `connection_dialog.py` is an
+editable LLM provider/model form writing to `config.toml` via `core.config.settings.
+update_config_file` (a narrow scalar-line writer, not a general TOML writer — preserves every other
+line in the file exactly); it never claims a live reload, since `bootstrap()` only runs once per
+launch. `core/llm/factory.py` selects
 providers consistently for planning, authoring, and assignment solving. See `docs/DESKTOP.md` for the
 lifecycle and permission boundaries.
 
@@ -181,7 +185,10 @@ recurring), schedules/jobs, trust_rules (standing tool-approval grants). See the
 `core/config/settings.py` resolves settings in layers: built-in defaults → `config.toml`
 (`KANNA_CONFIG_PATH`, default `~/.kanna/config.toml`) → `KANNA_*` environment variables. All of
 Kanna's own state (database, logs, config) lives under `KANNA_HOME` (default `~/.kanna`), which also
-defaults into the filesystem sandbox alongside the current working directory.
+defaults into the filesystem sandbox alongside the current working directory. `update_config_file()`
+is a narrow, purpose-built writer for exactly the top-level scalar keys the desktop connection form
+edits — not a general TOML writer/parser round-trip, so it can't reformat or lose anything else
+already in the file.
 
 ## Extending Kanna
 

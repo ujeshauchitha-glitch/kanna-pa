@@ -129,6 +129,29 @@ def test_approval_resolved_for_a_different_request_leaves_open_dialog_alone(app)
     dialog.destroy()
 
 
+def test_connection_button_before_ready_shows_a_message_not_a_crash(app, monkeypatch):
+    shown = {}
+    monkeypatch.setattr(
+        "interfaces.desktop.app.messagebox.showinfo",
+        lambda title, message, **kw: shown.update(title=title, message=message))
+    assert not app.info
+    app._show_info()
+    assert "starting" in shown.get("message", "").lower()
+
+
+def test_connection_button_opens_and_reuses_dialog_once_ready(app):
+    app.worker.events.put(("ready", {"planner": "RuleBasedPlanner", "model": "none",
+                                      "roots": ["."], "tools": 1}))
+    app._poll()
+    app._show_info()
+    first = app.connection_dialog
+    assert first is not None and first.top.winfo_exists()
+
+    app._show_info()  # a second click focuses the same dialog, no duplicate
+    assert app.connection_dialog is first
+    first.top.destroy()
+
+
 def test_startup_button_opens_and_reuses_dialog(app):
     app._show_startup()
     first = app.startup_dialog

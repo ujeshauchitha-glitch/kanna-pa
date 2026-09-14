@@ -13,6 +13,7 @@ from core.permissions.sandbox import Sandbox
 from interfaces.desktop.files import show_in_folder
 from interfaces.desktop.history_dialog import HistoryDialog
 from interfaces.desktop.hotkey import configured_hotkey, create_hotkey_backend
+from interfaces.desktop.connection_dialog import ConnectionDialog
 from interfaces.desktop.singleton import SingleInstanceGuard
 from interfaces.desktop.startup_dialog import StartupDialog
 from interfaces.desktop.worker import DesktopWorker, compose_request
@@ -38,8 +39,10 @@ class KannaApp:
         self.files = []
         self.info = {}
         self.db = None
+        self.settings = None
         self.history_dialog = None
         self.startup_dialog = None
+        self.connection_dialog = None
         self._approval_dialog = None
         self._approval_request = None
         self.busy = False
@@ -263,6 +266,7 @@ class KannaApp:
             if kind == "ready":
                 self.info = payload
                 self.db = payload.get("db")
+                self.settings = payload.get("settings")
                 limited = payload["planner"] == "RuleBasedPlanner"
                 self.connection.configure(text=("Basic commands only\nLLM not configured" if limited else payload["model"]) + f"\n{payload['tools']} registered tools")
                 self.status.configure(text="Ready · basic mode" if limited else "Ready", fg=ACCENT)
@@ -389,8 +393,14 @@ class KannaApp:
         threading.Thread(target=record, daemon=True).start()
 
     def _show_info(self):
-        roots = "\n".join(self.info.get("roots", [])) or "Starting…"
-        messagebox.showinfo("Connection & access", f"Planner: {self.info.get('planner', 'Starting…')}\nConfigured model: {self.info.get('model', '—')}\n\nWorkspace folders:\n{roots}\n\nLLM configuration: KANNA_LLM_PROVIDER and KANNA_LLM_MODEL, or ~/.kanna/config.toml. Restart after changes. A configured model is not a guarantee that its server is reachable.", parent=self.root)
+        if not self.info:
+            messagebox.showinfo("Connection & access", "Kanna is still starting; try again in a moment.", parent=self.root)
+            return
+        if self.connection_dialog is not None and self.connection_dialog.top.winfo_exists():
+            self.connection_dialog.top.lift()
+            self.connection_dialog.top.focus_set()
+            return
+        self.connection_dialog = ConnectionDialog(self.root, self.info, self.settings, self._palette())
 
     @staticmethod
     def _palette():

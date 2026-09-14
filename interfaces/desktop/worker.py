@@ -116,7 +116,7 @@ class DesktopWorker:
             self.ready = True
             self.events.put(("ready", {"planner": type(kanna.planner).__name__,
                 "model": kanna.settings.llm_model, "roots": [str(p) for p in kanna.sandbox.roots],
-                "tools": len(kanna.registry.names()), "db": kanna.db}))
+                "tools": len(kanna.registry.names()), "db": kanna.db, "settings": kanna.settings}))
             while not self._stop.is_set():
                 text = self._commands.get()
                 if text is None or self._stop.is_set():

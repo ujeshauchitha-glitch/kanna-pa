@@ -58,6 +58,19 @@ Record 4 seconds uses the existing Google transcription path, then inserts text 
 review. It never automatically executes recognized speech. Missing dependencies, microphone failures,
 and transcription errors leave typed input usable. Recording and task execution cannot overlap.
 
+## Task history
+
+The **Task history** button (top bar) opens a read-only browser over every past run — persisted
+`plans`/`plan_steps` rows the agent loop already writes (`core/agent/history.py`), not a new store and
+not a rerun. Each run shows its request, final status, every step's tool/status/attempt count and
+outcome message, and the files it produced. A file's continued existence is checked live each time
+the dialog opens or refreshes; one recorded but since moved or deleted is marked **missing** rather
+than silently omitted or claimed present. History survives an app restart (it's the same database the
+live session writes to) and is scoped to desktop-submitted runs by default. The dialog queries the
+worker's `Database` handle directly from the Tk thread — safe because `Database` is built for that
+(its own lock, `check_same_thread=False`) — so browsing history never blocks or is blocked by a task
+actually running.
+
 ## Approvals and lifecycle
 
 A REVIEW action not already covered by a trust rule opens a dialog showing the tool, exact resolved
@@ -98,5 +111,10 @@ guard's bind/notify/close behavior with real sockets — no mocking, since the O
 deterministically (mocked `sys.platform`/`XDG_SESSION_TYPE`, never a real grab), plus a separate,
 explicitly live-only pair of tests that register the real X11 backend against an actual X server and
 confirm it fires on the exact configured combo and stays silent on an unrelated key — skipped where
-no live X11 session with `python-xlib` and `xdotool` exists. `test_provider_routing.py` tests source-authoring provider
+no live X11 session with `python-xlib` and `xdotool` exists. `test_agent_history.py` drives the real
+`AgentLoop` against real filesystem tools (no mocking) so `list_runs`/`get_run` are checked against
+genuine plan/plan_step rows — including a file deleted between the run and the history read, to prove
+the "missing" case is real, not asserted against a canned fixture. `test_desktop_history_dialog.py`
+constructs the real dialog against a real in-memory database and checks run selection, the files
+list's ✓/✗ markers, refresh-preserves-selection, and copy-path. `test_provider_routing.py` tests source-authoring provider
 selection and local-to-cloud fallback separation using scripted providers, without paid API calls.

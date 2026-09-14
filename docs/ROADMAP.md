@@ -150,26 +150,25 @@ authoring (`author_content`) now bridges source reading and document generation 
 content creation, provenance tracking, and explicit unresolved questions. `document_read` extracts
 structured content from DOCX files, and `assignment_solve` provides end-to-end question extraction
 and answering with source-grounded answers. `WindowsAgent` provides real desktop automation on
-Windows via PowerShell/.NET. The desktop task workspace now has a real single-instance guard and a
-cross-platform global hotkey (Windows + X11 Linux) — see `docs/DESKTOP.md`.
+Windows via PowerShell/.NET. The desktop task workspace now has a real single-instance guard, a
+cross-platform global hotkey (Windows + X11 Linux), and a task history browser over the agent loop's
+own persisted plan/step evidence (no new schema, no rerun) — see `docs/DESKTOP.md`.
 
-1. **Startup-at-login integration** for the desktop app (per-user, explicit enable/disable, no admin
-   privileges required, documented uninstall) — the natural next piece of "reliable desktop access"
-   now that launching and single-instancing are solid.
-2. **Task history in the desktop workspace** — browse persisted `AgentSession` requests/results
-   (already recorded, not yet surfaced in the UI) without rerunning work, including honest handling
-   of a since-moved-or-deleted output file.
-3. **Cooperative cancellation** — a cancel affordance with clearly defined boundaries (checked before
+1. **Cooperative cancellation** — a cancel affordance with clearly defined boundaries (checked before
    the next tool call/retry, not mid-tool-call), explicit about not undoing completed side effects.
-4. **Phone/device backend** and the full capability-based router across all registered devices,
+   The natural next piece now that launching, single-instancing, and reviewing past runs are solid.
+2. **Startup-at-login integration** for the desktop app (per-user, explicit enable/disable, no admin
+   privileges required, documented uninstall).
+3. **Phone/device backend** and the full capability-based router across all registered devices,
    now that Fedora and Windows backends have validated the `ComputerAgent` interface in practice.
 
 ## Explicitly deferred, no strong opinion yet
 
 - Desktop and voice are implemented. The desktop workspace now supports serialized execution,
-  source selection, approvals, output files, voice-to-draft, a real single-instance guard, and a
-  real cross-platform global hotkey (Windows + X11 Linux; Wayland and macOS honestly report
-  unavailable rather than faking it — see `docs/DESKTOP.md`). Next UI improvements: restored session
-  browsing (task history), cancellation, per-user login-time startup registration, and connection
-  setup forms. Mobile UI is deferred.
+  source selection, approvals, output files, voice-to-draft, a real single-instance guard, a real
+  cross-platform global hotkey (Windows + X11 Linux; Wayland and macOS honestly report unavailable
+  rather than faking it), and a read-only task history browser (`core/agent/history.py` +
+  `interfaces/desktop/history_dialog.py`) — see `docs/DESKTOP.md`. Next UI improvements:
+  cancellation, per-user login-time startup registration, and connection setup forms. Mobile UI is
+  deferred.
 - Multi-device task routing beyond the capability-matching sketch in `docs/DEVICES.md`.

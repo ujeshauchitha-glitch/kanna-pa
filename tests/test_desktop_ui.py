@@ -5,6 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from core.memory.db import Database
 from interfaces.desktop.app import KannaApp
 
 
@@ -48,6 +49,48 @@ def test_minimum_window_keeps_composer_visible(app):
     assert app.send_btn.winfo_ismapped()
     assert app.artifacts.winfo_ismapped()
     assert app.output.winfo_height() >= 80
+
+
+def test_history_button_opens_dialog_once_db_is_ready(app):
+    db = Database(":memory:")
+    db.migrate()
+    try:
+        app.worker.events.put(("ready", {"planner": "RuleBasedPlanner", "model": "none",
+                                          "roots": ["."], "tools": 1, "db": db}))
+        app._poll()
+        assert app.db is db
+        app._show_history()  # must not raise even with an empty history
+    finally:
+        if app.history_dialog is not None:
+            app.history_dialog.top.destroy()
+        db.close()
+
+
+def test_history_button_reuses_open_dialog_instead_of_duplicating(app):
+    db = Database(":memory:")
+    db.migrate()
+    try:
+        app.worker.events.put(("ready", {"planner": "RuleBasedPlanner", "model": "none",
+                                          "roots": ["."], "tools": 1, "db": db}))
+        app._poll()
+        app._show_history()
+        first = app.history_dialog
+        app._show_history()
+        assert app.history_dialog is first
+    finally:
+        if app.history_dialog is not None:
+            app.history_dialog.top.destroy()
+        db.close()
+
+
+def test_history_button_before_ready_shows_a_message_not_a_crash(app, monkeypatch):
+    shown = {}
+    monkeypatch.setattr(
+        "interfaces.desktop.app.messagebox.showinfo",
+        lambda title, message, **kw: shown.update(title=title, message=message))
+    assert app.db is None
+    app._show_history()
+    assert "starting" in shown.get("message", "").lower()
 
 
 def test_real_hotkey_registration_never_raises_and_cleans_up():

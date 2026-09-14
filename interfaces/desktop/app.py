@@ -2,16 +2,16 @@
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 import queue
-import subprocess
 import sys
 import threading
 import tkinter as tk
 from tkinter import filedialog, messagebox, scrolledtext, ttk
 
 from core.permissions.sandbox import Sandbox
+from interfaces.desktop.files import show_in_folder
+from interfaces.desktop.history_dialog import HistoryDialog
 from interfaces.desktop.hotkey import configured_hotkey, create_hotkey_backend
 from interfaces.desktop.singleton import SingleInstanceGuard
 from interfaces.desktop.worker import DesktopWorker, compose_request
@@ -36,6 +36,8 @@ class KannaApp:
         self.attachments = []
         self.files = []
         self.info = {}
+        self.db = None
+        self.history_dialog = None
         self.busy = False
         self.recording = False
         self.closing = False
@@ -74,6 +76,7 @@ class KannaApp:
         self._label(top, "   YOUR TASK WORKSPACE", 9, MUTED).pack(side=tk.LEFT, pady=(7, 0))
         self._button(top, "Quit", self._quit).pack(side=tk.RIGHT)
         self._button(top, "Connection & access", self._show_info).pack(side=tk.RIGHT, padx=8)
+        self._button(top, "Task history", self._show_history).pack(side=tk.RIGHT)
 
         body = tk.Frame(self.root, bg=BG)
         body.pack(fill=tk.BOTH, expand=True, padx=24, pady=(0, 20))
@@ -243,6 +246,7 @@ class KannaApp:
                 break
             if kind == "ready":
                 self.info = payload
+                self.db = payload.get("db")
                 limited = payload["planner"] == "RuleBasedPlanner"
                 self.connection.configure(text=("Basic commands only\nLLM not configured" if limited else payload["model"]) + f"\n{payload['tools']} registered tools")
                 self.status.configure(text="Ready · basic mode" if limited else "Ready", fg=ACCENT)
@@ -342,6 +346,18 @@ class KannaApp:
         roots = "\n".join(self.info.get("roots", [])) or "Starting…"
         messagebox.showinfo("Connection & access", f"Planner: {self.info.get('planner', 'Starting…')}\nConfigured model: {self.info.get('model', '—')}\n\nWorkspace folders:\n{roots}\n\nLLM configuration: KANNA_LLM_PROVIDER and KANNA_LLM_MODEL, or ~/.kanna/config.toml. Restart after changes. A configured model is not a guarantee that its server is reachable.", parent=self.root)
 
+    def _show_history(self):
+        if self.db is None:
+            messagebox.showinfo("Task history", "Kanna is still starting; try again in a moment.", parent=self.root)
+            return
+        if self.history_dialog is not None and self.history_dialog.top.winfo_exists():
+            self.history_dialog.top.lift()
+            self.history_dialog.top.focus_set()
+            return
+        palette = {"BG": BG, "PANEL": PANEL, "FIELD": FIELD, "TEXT": TEXT, "MUTED": MUTED,
+                   "ACCENT": ACCENT, "ERROR": ERROR}
+        self.history_dialog = HistoryDialog(self.root, self.db, palette)
+
     def _copy_result(self):
         if self.last_result:
             self.root.clipboard_clear()
@@ -361,11 +377,7 @@ class KannaApp:
         path = self._selected_path()
         if path:
             try:
-                parent = Path(path).parent
-                if sys.platform == "win32":
-                    os.startfile(str(parent))
-                else:
-                    subprocess.Popen(["open" if sys.platform == "darwin" else "xdg-open", str(parent)])
+                show_in_folder(path)
             except OSError as exc:
                 messagebox.showerror("Cannot open folder", str(exc), parent=self.root)
 

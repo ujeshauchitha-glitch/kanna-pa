@@ -17,7 +17,8 @@ core/
   llm/          LLMProvider protocol, AnthropicProvider (real), NullProvider, FakeProvider (tests)
   planner/      Planner protocol, RuleBasedPlanner (deterministic), LLMPlanner (validates the
                 model's plan against the tool registry before accepting it)
-  agent/        AgentState, the AgentLoop itself, verifier (postcondition checks), AgentSession
+  agent/        AgentState, the AgentLoop itself, verifier (postcondition checks), AgentSession,
+                history (read-only past-run query layer over plans/plan_steps)
   tasks/        The task-tracking system (distinct from finance and from plan execution)
   bootstrap.py  Wires every piece above into one Kanna object — the CLI and tests both use this
 
@@ -86,7 +87,9 @@ deliberately not created until there's real code to put in them — see `docs/RO
 approval requests, results, and voice transcripts cross queues into the UI thread. AgentSession
 persists desktop requests/results. `singleton.py` is a real, OS-level single-instance guard (a
 loopback socket, not a UI check); `hotkey.py` is the cross-platform global-hotkey abstraction
-(real Windows and X11 backends, honest `NullHotkeyBackend` elsewhere). `core/llm/factory.py` selects
+(real Windows and X11 backends, honest `NullHotkeyBackend` elsewhere). `history_dialog.py` browses
+past runs read-only via `core/agent/history.py`, a query layer over the same `plans`/`plan_steps`
+evidence the agent loop already persists — no new schema, no rerun. `core/llm/factory.py` selects
 providers consistently for planning, authoring, and assignment solving. See `docs/DESKTOP.md` for the
 lifecycle and permission boundaries.
 

@@ -51,7 +51,11 @@ def test_real_agent_session_runs_and_closes_on_one_thread(tmp_path):
     worker = DesktopWorker(factory=factory(tmp_path, threads))
     assert not worker.submit("list files in .")
     worker.start()
-    receive(worker, "ready")
+    ready = receive(worker, "ready")
+    # The task history dialog queries this same handle directly from the
+    # Tk thread — Database is explicitly thread-safe (its own RLock,
+    # check_same_thread=False), so sharing the reference is intentional.
+    assert isinstance(ready["db"], Database)
     assert worker.submit("list files in .")
     result = receive(worker, "result")
     assert result["state"] == "complete"

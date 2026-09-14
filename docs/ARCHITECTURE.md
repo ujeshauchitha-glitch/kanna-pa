@@ -130,6 +130,12 @@ never a fabricated success. If the planner can't even produce a plan, the run re
 Every transition is published on the event bus, and the plan + each step's outcome is persisted via
 `PlanRepository` (`plans`/`plan_steps` tables), so a run is inspectable after the fact.
 
+`run()` optionally takes `cancel: threading.Event | None` — checked before the next step and before
+the next correction retry, never mid-call, so a report is **CANCELLED** (a real terminal state, not
+folded into FAILED) with a message stating exactly how much completed. A step already in flight
+always finishes normally first. See `docs/DESKTOP.md`'s Cancellation section for the desktop wiring
+(worker/gate/UI) built on top of this.
+
 See `core/agent/loop.py`'s module docstring and `core/planner/llm_planner.py::LLMPlanner.revise_step`
 for the correction design in full.
 

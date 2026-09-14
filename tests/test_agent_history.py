@@ -15,12 +15,12 @@ from core.planner.plan import Plan, PlanStep
 from core.tools.context import ToolContext
 
 
-def _run(db, sandbox, settings, event_bus, registry, *, source, plan):
+def _run(db, sandbox, settings, event_bus, registry, *, source, plan, cancel=None):
     session = SessionRepository(db).create({"source": source})
     ctx = ToolContext(db=db, settings=settings, sandbox=sandbox, event_bus=event_bus,
                        logger=logging.getLogger("kanna.test"), session_id=session.id)
     planner = SimpleNamespace(create_plan=lambda *a: plan)
-    return AgentLoop(registry, planner, ctx, max_corrections=0).run(plan.request)
+    return AgentLoop(registry, planner, ctx, max_corrections=0).run(plan.request, cancel=cancel)
 
 
 def test_list_runs_filters_by_source_and_orders_recent_first(db, sandbox, settings, event_bus, registry):
@@ -85,3 +85,27 @@ def test_list_runs_step_and_failure_counts(db, sandbox, settings, event_bus, reg
     [summary] = list_runs(db)
     assert summary.step_count == 2
     assert summary.failed_step_count == 1
+
+
+def test_a_cancelled_run_is_recorded_and_readable_as_such(db, sandbox, settings, event_bus, registry):
+    import threading
+
+    plan = Plan("two steps", [
+        PlanStep("fs_write_file", {"path": "first.txt", "content": "hi", "overwrite": False}),
+        PlanStep("fs_write_file", {"path": "second.txt", "content": "hi", "overwrite": False}),
+    ])
+    cancel = threading.Event()
+    cancel.set()  # cancelled before any step of this run gets to execute
+    result = _run(db, sandbox, settings, event_bus, registry, source="desktop", plan=plan, cancel=cancel)
+    assert result.state.value == "cancelled"
+
+    [summary] = list_runs(db)
+    assert summary.status == "cancelled"
+
+    detail = get_run(db, summary.id)
+    assert detail.status == "cancelled"
+    # Both steps are still "pending" rows (created up front when the plan
+    # was persisted) — neither actually ran, and the message says why:
+    # cancelled, not mistaken for "an earlier step failed".
+    assert [s.status for s in detail.steps] == ["pending", "pending"]
+    assert all("cancelled" in s.message for s in detail.steps)

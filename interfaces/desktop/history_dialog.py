@@ -13,7 +13,7 @@ from tkinter import messagebox, scrolledtext
 from core.agent.history import get_run, list_runs
 from interfaces.desktop.files import show_in_folder
 
-_STATUS_BADGE = {"complete": "✓", "failed": "✗", "in_progress": "…"}
+_STATUS_BADGE = {"complete": "✓", "failed": "✗", "in_progress": "…", "cancelled": "⏹"}
 
 
 class HistoryDialog:

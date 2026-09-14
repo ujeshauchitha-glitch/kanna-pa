@@ -22,6 +22,9 @@ class AgentState(enum.Enum):
     COMPLETE = "complete"
     FAILED = "failed"
     BLOCKED = "blocked"
+    CANCELLED = "cancelled"
 
 
-TERMINAL_STATES = frozenset({AgentState.COMPLETE, AgentState.FAILED, AgentState.BLOCKED})
+TERMINAL_STATES = frozenset({
+    AgentState.COMPLETE, AgentState.FAILED, AgentState.BLOCKED, AgentState.CANCELLED,
+})

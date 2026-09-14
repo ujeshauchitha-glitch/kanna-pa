@@ -16,9 +16,10 @@ from core.llm.base import LLMResponse, Message, ToolCall
 
 class AnthropicProvider:
     def __init__(self, *, model: str = "claude-sonnet-5", max_tokens: int = 4096,
-                 api_key: str | None = None) -> None:
+                 api_key: str | None = None, timeout: float | None = 120.0) -> None:
         self.model = model
         self.max_tokens = max_tokens
+        self.timeout = timeout
         self._api_key = api_key or os.environ.get("ANTHROPIC_API_KEY")
         self._client = None
 
@@ -38,7 +39,11 @@ class AnthropicProvider:
                 "the 'anthropic' package is not installed; run `pip install kanna[llm]`"
             ) from exc
 
-        self._client = anthropic.Anthropic(api_key=self._api_key)
+        # A request with no server-side timeout can hang indefinitely —
+        # cooperative cancellation (core.agent.loop.AgentLoop.run) only
+        # checks *between* calls, so an in-flight call still needs its
+        # own bound for cancellation to mean anything in practice.
+        self._client = anthropic.Anthropic(api_key=self._api_key, timeout=self.timeout)
         return self._client
 
     def complete(self, messages: list[Message], *, system: str | None = None,

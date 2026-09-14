@@ -94,17 +94,64 @@ def test_desktop_approval_controls_real_overwrite_and_blocks_overlap(tmp_path, a
     assert not worker.thread.is_alive()
 
 
+def test_worker_cancel_denies_pending_approval_and_reports_cancelled(tmp_path):
+    from core.planner.plan import Plan, PlanStep
+    path = tmp_path / "existing.txt"
+    path.write_text("original")
+    planner = SimpleNamespace(create_plan=lambda *a: Plan("overwrite", [PlanStep("fs_write_file",
+                {"path": str(path), "content": "changed", "overwrite": True})]))
+    worker = DesktopWorker(factory=factory(tmp_path, [], planner=planner))
+    worker.start()
+    receive(worker, "ready")
+    assert worker.submit("overwrite")
+    receive(worker, "approval")  # left unanswered — cancelled instead
+    assert worker.cancel()
+    result = receive(worker, "result")
+    assert result["state"] == "cancelled"
+    assert path.read_text() == "original"  # never actually overwritten
+    receive(worker, "idle")
+    worker.close()
+    worker.thread.join(5)
+
+
+def test_cancel_is_a_noop_when_nothing_is_running(tmp_path):
+    worker = DesktopWorker(factory=factory(tmp_path, []))
+    worker.start()
+    receive(worker, "ready")
+    assert worker.cancel() is False
+    worker.close()
+    worker.thread.join(5)
+
+
 def test_closing_releases_pending_approval_as_denied():
-    events, stop = queue.Queue(), threading.Event()
-    gate = DesktopGate(events, stop)
+    events, stop, cancel = queue.Queue(), threading.Event(), threading.Event()
+    gate = DesktopGate(events, stop, cancel)
+    answers = []
+    thread = threading.Thread(target=lambda: answers.append(gate.approve(
+        tool_name="delete", args={}, level=None, reason="review")))
+    thread.start()
+    _kind, request = events.get(timeout=2)
+    assert _kind == "approval"
+    stop.set()
+    thread.join(2)
+    assert answers == [False]
+    # The UI needs to know to close the (otherwise orphaned) dialog it
+    # opened for this exact request.
+    assert events.get(timeout=2) == ("approval_resolved", request)
+
+
+def test_cancelling_releases_pending_approval_as_denied_without_stopping():
+    events, stop, cancel = queue.Queue(), threading.Event(), threading.Event()
+    gate = DesktopGate(events, stop, cancel)
     answers = []
     thread = threading.Thread(target=lambda: answers.append(gate.approve(
         tool_name="delete", args={}, level=None, reason="review")))
     thread.start()
     assert events.get(timeout=2)[0] == "approval"
-    stop.set()
+    cancel.set()
     thread.join(2)
     assert answers == [False]
+    assert not stop.is_set()  # cancelling one task must not shut down the worker
 
 
 def test_startup_failure_does_not_accept_work():

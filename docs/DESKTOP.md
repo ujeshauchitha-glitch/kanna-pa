@@ -83,13 +83,42 @@ touches widgets. Requests and answers are persisted through AgentSession; this i
 not multi-turn model memory or a restored conversation view.
 
 Window close minimizes to the taskbar so the app remains reachable even without a tray icon. The
-optional tray Show action and Windows Ctrl+Shift+K restore it. Quit waits for the current workflow
-to return, denies pending approvals on shutdown, then closes browser/database resources. It does
-not promise cancellation or undo side effects. A hung provider can delay shutdown; interruptible
-provider calls and explicit task cancellation remain future work.
+optional tray Show action and the global hotkey restore it. Quit waits for the current workflow to
+return (it does not cancel it — see the dialog's own wording), denies pending approvals on
+shutdown, then closes browser/database resources. It does not promise undo of side effects.
 
 The layout adapts below 720 pixels high with a shorter composer and source/output controls, keeping
 the result area visible at the 860×640 minimum. Full layout is 1120×780 by default.
+
+## Cancellation
+
+The **Cancel** button (next to Copy result) is enabled while a task is running. It's cooperative,
+not preemptive: `AgentLoop.run()` (`core/agent/loop.py`) checks a `threading.Event` at two specific
+points — before the next step starts, and before the next correction retry within a step — never
+mid-call. A step already invoking a tool or an LLM always runs to its actual outcome; cancellation
+only stops *further* work from starting. The run is then reported `CANCELLED` (a real terminal
+`AgentState`, distinct from `FAILED`), and the message says exactly how much completed — e.g.
+"Cancelled after 1 of 3 step(s) completed. Actions already taken were not undone." Cancellation
+never claims to undo a side effect a tool already performed, because it doesn't attempt to.
+
+A REVIEW approval dialog is application-modal, which makes the main window's Cancel button
+unreachable while one is open — so the dialog itself has a **Cancel task** button (denies this one
+action *and* requests cancellation of the whole run) alongside Allow once/Deny. A cancellation
+requested from anywhere else while an approval is pending is handled automatically: `DesktopGate`
+(`interfaces/desktop/worker.py`) denies the pending request and closes its dialog on the next
+~0.1s check, the same path already used for shutdown, so a task doesn't hang forever staring at a
+question nobody's going to answer.
+
+Because a provider call has no way to be interrupted once sent, cooperative cancellation checked
+only *between* calls depends on each call eventually returning at all — so `AnthropicProvider` and
+`LiteLLMProvider` now send every request with a real timeout (`llm_timeout_seconds`, default 120s,
+`KANNA_LLM_TIMEOUT_SECONDS`/`config.toml`), bounding how long a hung or unreachable model server can
+block a step regardless of cancellation. `tools/process/run_process.py` already had its own
+independent timeout.
+
+Cancelled runs show up in task history exactly like any other outcome (`⏹` badge) — steps that never
+got to run are shown as "pending" with an honest "Not run — the task was cancelled first." message,
+not confused with an earlier step having failed.
 
 ## Provider integration
 
@@ -97,7 +126,9 @@ Planning, author_content, and assignment_solve now share `core.llm.factory.build
 of authoring always selecting Anthropic. LiteLLM's Ollama compatibility URL/key are per-call
 arguments. A cloud fallback cannot inherit an earlier local Ollama endpoint or dummy key. No global
 LiteLLM settings or configured model names are mutated. PDF/image vision extraction still uses its
-existing Anthropic vision provider; this change does not add universal vision routing.
+existing Anthropic vision provider; this change does not add universal vision routing. Every
+provider call now carries `llm_timeout_seconds` (see Cancellation, above) — `build_provider` is the
+one place that reads the setting, so both providers stay consistent without each hardcoding it.
 
 ## Tests
 
@@ -117,4 +148,13 @@ genuine plan/plan_step rows — including a file deleted between the run and the
 the "missing" case is real, not asserted against a canned fixture. `test_desktop_history_dialog.py`
 constructs the real dialog against a real in-memory database and checks run selection, the files
 list's ✓/✗ markers, refresh-preserves-selection, and copy-path. `test_provider_routing.py` tests source-authoring provider
-selection and local-to-cloud fallback separation using scripted providers, without paid API calls.
+selection and local-to-cloud fallback separation using scripted providers, without paid API calls,
+and that `build_provider` forwards the configured timeout to both providers, and that a real
+(mocked-transport) `LiteLLMProvider.complete()` call actually carries it. `test_agent_loop.py`
+covers cancellation at the `AgentLoop` level directly (before the next step, before the next
+correction retry, cancelled-before-anything-ran, and that omitting `cancel` entirely behaves
+exactly as before). `test_desktop_worker.py`/`test_desktop_ui.py` cover it end to end through the
+real worker and real dialog — cancelling denies a pending approval without shutting down the
+worker, the main-window Cancel button reaches `worker.cancel()`, and the dialog's own Cancel task
+button does too. Live-verified by hand: launched the real app, opened a REVIEW approval dialog for
+real, clicked Cancel task, and confirmed the target file was never actually written.

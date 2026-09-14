@@ -24,6 +24,12 @@ _DEFAULTS: dict[str, Any] = {
     "llm_model": "ollama/qwen3:8b",
     "llm_max_tokens": 8192,
     "llm_fallback_models": "ollama/llama3.2:3b,gpt-4o-mini",
+    # A provider call has no way to be interrupted once sent (see
+    # core/llm/*_provider.py), so cooperative cancellation — checked only
+    # between calls, never mid-call — depends on a call eventually
+    # returning at all. This bounds how long a hung/unreachable model
+    # server (a local Ollama that never responds, say) can block a step.
+    "llm_timeout_seconds": 120,
     "log_level": "INFO",
     "max_plan_steps": 20,
     "max_corrections": 3,
@@ -39,12 +45,13 @@ _ENV_KEYS = {
     "llm_model": "LLM_MODEL",
     "llm_max_tokens": "LLM_MAX_TOKENS",
     "llm_fallback_models": "LLM_FALLBACK_MODELS",
+    "llm_timeout_seconds": "LLM_TIMEOUT_SECONDS",
     "log_level": "LOG_LEVEL",
     "max_plan_steps": "MAX_PLAN_STEPS",
     "max_corrections": "MAX_CORRECTIONS",
 }
 
-_INT_KEYS = {"llm_max_tokens", "max_plan_steps", "max_corrections"}
+_INT_KEYS = {"llm_max_tokens", "llm_timeout_seconds", "max_plan_steps", "max_corrections"}
 
 
 @dataclass(frozen=True)
@@ -55,6 +62,7 @@ class Settings:
     llm_model: str = _DEFAULTS["llm_model"]
     llm_max_tokens: int = _DEFAULTS["llm_max_tokens"]
     llm_fallback_models: str = _DEFAULTS["llm_fallback_models"]
+    llm_timeout_seconds: int = _DEFAULTS["llm_timeout_seconds"]
     log_level: str = _DEFAULTS["log_level"]
     max_plan_steps: int = _DEFAULTS["max_plan_steps"]
     max_corrections: int = _DEFAULTS["max_corrections"]
@@ -104,6 +112,7 @@ def load_settings(config_path: Path | None = None) -> Settings:
         llm_model=values["llm_model"],
         llm_max_tokens=int(values["llm_max_tokens"]),
         llm_fallback_models=values.get("llm_fallback_models", ""),
+        llm_timeout_seconds=int(values.get("llm_timeout_seconds", _DEFAULTS["llm_timeout_seconds"])),
         log_level=values["log_level"],
         max_plan_steps=int(values["max_plan_steps"]),
         max_corrections=int(values["max_corrections"]),

@@ -23,10 +23,17 @@ class LiteLLMProvider:
         model: str | None = None,
         max_tokens: int = 4096,
         fallback_models: list[str] | None = None,
+        timeout: float | None = 120.0,
     ) -> None:
         self.model = model or os.environ.get("KANNA_LLM_MODEL", "openai/gpt-4o-mini")
         self.max_tokens = max_tokens
         self.fallback_models = fallback_models or []
+        # A request with no bound can hang indefinitely — cooperative
+        # cancellation (core.agent.loop.AgentLoop.run) only checks
+        # *between* calls, so an in-flight call still needs its own
+        # bound (per attempt: primary + every fallback each get up to
+        # this long) for cancellation to mean anything in practice.
+        self.timeout = timeout
         self._client = None
 
     def _get_client(self):
@@ -69,6 +76,8 @@ class LiteLLMProvider:
             "messages": litellm_messages,
             "max_tokens": self.max_tokens,
         }
+        if self.timeout is not None:
+            kwargs["timeout"] = self.timeout
         if tools:
             kwargs["tools"] = [
                 {

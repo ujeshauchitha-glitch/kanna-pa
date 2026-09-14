@@ -38,6 +38,8 @@ class KannaApp:
         self.info = {}
         self.db = None
         self.history_dialog = None
+        self._approval_dialog = None
+        self._approval_request = None
         self.busy = False
         self.recording = False
         self.closing = False
@@ -136,6 +138,9 @@ class KannaApp:
         self.status = self._label(state_row, "Starting Kanna…", 10, ACCENT, True)
         self.status.pack(side=tk.LEFT)
         self._button(state_row, "Copy result", self._copy_result).pack(side=tk.RIGHT)
+        self.cancel_btn = self._button(state_row, "Cancel", self._on_cancel)
+        self.cancel_btn.pack(side=tk.RIGHT, padx=(0, 8))
+        self.cancel_btn.configure(state=tk.DISABLED)
         self.progress = ttk.Progressbar(main, mode="indeterminate", style="Kanna.Horizontal.TProgressbar")
         self.progress.pack(fill=tk.X, pady=(0, 8))
         self.output = scrolledtext.ScrolledText(main, wrap=tk.WORD, state=tk.DISABLED,
@@ -233,10 +238,18 @@ class KannaApp:
         state = tk.DISABLED if busy or self.closing else tk.NORMAL
         for widget in (self.entry, self.send_btn, self.attach_btn, self.voice_btn, self.clear_sources):
             widget.configure(state=state)
+        self.cancel_btn.configure(state=tk.NORMAL if busy and not self.closing else tk.DISABLED)
         if busy:
             self.progress.start(14)
         else:
             self.progress.stop()
+
+    def _on_cancel(self):
+        if self.worker.cancel():
+            # Nothing more for a second click to do — cancellation is
+            # already requested; re-enabled when the next task starts.
+            self.cancel_btn.configure(state=tk.DISABLED)
+            self.status.configure(text="Cancelling — finishing the current step…", fg=MUTED)
 
     def _poll(self):
         for _ in range(100):
@@ -265,10 +278,21 @@ class KannaApp:
                     self._log(f"{label}: {tool or ''}", "info")
             elif kind == "approval":
                 self._approve(payload)
+            elif kind == "approval_resolved":
+                # The gate answered a request itself (cancelled/shutting
+                # down) before the user did — close the now-orphaned
+                # dialog rather than leaving it open uselessly.
+                if self._approval_request is payload:
+                    self._close_approval_dialog()
             elif kind == "result":
                 self.last_result = payload["message"]
-                self.status.configure(text={"complete": "Completed", "failed": "Task failed", "blocked": "Needs attention"}.get(payload["state"], payload["state"]), fg=ACCENT if payload["state"] == "complete" else ERROR)
-                self._log(payload["message"], "kanna" if payload["state"] == "complete" else "error")
+                state = payload["state"]
+                label = {"complete": "Completed", "failed": "Task failed",
+                         "blocked": "Needs attention", "cancelled": "Cancelled"}.get(state, state)
+                color = ACCENT if state == "complete" else (MUTED if state == "cancelled" else ERROR)
+                self.status.configure(text=label, fg=color)
+                tag = "kanna" if state == "complete" else ("info" if state == "cancelled" else "error")
+                self._log(payload["message"], tag)
                 self.files = payload["files"]
                 for path in self.files:
                     self.artifacts.insert(tk.END, path)
@@ -304,6 +328,8 @@ class KannaApp:
             request.respond(False)
             return
         dialog = tk.Toplevel(self.root)
+        self._approval_dialog = dialog
+        self._approval_request = request
         dialog.title("Review action — Kanna")
         dialog.geometry("620x420")
         dialog.configure(bg=PANEL)
@@ -316,16 +342,33 @@ class KannaApp:
         details.configure(state=tk.DISABLED)
         def answer(value):
             request.respond(value)
-            dialog.destroy()
+            self._close_approval_dialog()
+        def cancel_task():
+            # The dialog is application-modal (grab_set below), so the
+            # main window's own Cancel button is unreachable while this
+            # is open — this is the only way to cancel the whole task
+            # from here, not just deny this one action.
+            self.worker.cancel()
+            answer(False)
         buttons = tk.Frame(dialog, bg=PANEL)
         buttons.pack(fill=tk.X, padx=20, pady=(0, 16))
         deny = self._button(buttons, "Deny", lambda: answer(False))
         deny.pack(side=tk.RIGHT)
         self._button(buttons, "Allow once", lambda: answer(True), True).pack(side=tk.RIGHT, padx=10)
+        self._button(buttons, "Cancel task", cancel_task).pack(side=tk.LEFT)
         dialog.protocol("WM_DELETE_WINDOW", lambda: answer(False))
         dialog.bind("<Escape>", lambda e: answer(False))
         dialog.grab_set()
         deny.focus_set()
+
+    def _close_approval_dialog(self):
+        if self._approval_dialog is not None:
+            try:
+                self._approval_dialog.destroy()
+            except tk.TclError:
+                pass
+        self._approval_dialog = None
+        self._approval_request = None
 
     def _voice(self):
         if self.busy or self.recording or self.closing:

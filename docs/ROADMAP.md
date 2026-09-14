@@ -151,15 +151,15 @@ content creation, provenance tracking, and explicit unresolved questions. `docum
 structured content from DOCX files, and `assignment_solve` provides end-to-end question extraction
 and answering with source-grounded answers. `WindowsAgent` provides real desktop automation on
 Windows via PowerShell/.NET. The desktop task workspace now has a real single-instance guard, a
-cross-platform global hotkey (Windows + X11 Linux), and a task history browser over the agent loop's
-own persisted plan/step evidence (no new schema, no rerun) — see `docs/DESKTOP.md`.
+cross-platform global hotkey (Windows + X11 Linux), a task history browser over the agent loop's own
+persisted plan/step evidence (no new schema, no rerun), and cooperative cancellation (`AgentLoop.run`
+checks a `threading.Event` before the next step/retry, never mid-call; both LLM providers now carry
+a real request timeout so a hung model server can't defeat it) — see `docs/DESKTOP.md`.
 
-1. **Cooperative cancellation** — a cancel affordance with clearly defined boundaries (checked before
-   the next tool call/retry, not mid-tool-call), explicit about not undoing completed side effects.
-   The natural next piece now that launching, single-instancing, and reviewing past runs are solid.
-2. **Startup-at-login integration** for the desktop app (per-user, explicit enable/disable, no admin
-   privileges required, documented uninstall).
-3. **Phone/device backend** and the full capability-based router across all registered devices,
+1. **Startup-at-login integration** for the desktop app (per-user, explicit enable/disable, no admin
+   privileges required, documented uninstall). The natural next piece now that launching,
+   single-instancing, history, and cancellation are all solid.
+2. **Phone/device backend** and the full capability-based router across all registered devices,
    now that Fedora and Windows backends have validated the `ComputerAgent` interface in practice.
 
 ## Explicitly deferred, no strong opinion yet
@@ -167,8 +167,8 @@ own persisted plan/step evidence (no new schema, no rerun) — see `docs/DESKTOP
 - Desktop and voice are implemented. The desktop workspace now supports serialized execution,
   source selection, approvals, output files, voice-to-draft, a real single-instance guard, a real
   cross-platform global hotkey (Windows + X11 Linux; Wayland and macOS honestly report unavailable
-  rather than faking it), and a read-only task history browser (`core/agent/history.py` +
-  `interfaces/desktop/history_dialog.py`) — see `docs/DESKTOP.md`. Next UI improvements:
-  cancellation, per-user login-time startup registration, and connection setup forms. Mobile UI is
-  deferred.
+  rather than faking it), a read-only task history browser (`core/agent/history.py` +
+  `interfaces/desktop/history_dialog.py`), and cooperative cancellation — see `docs/DESKTOP.md`.
+  Next UI improvements: per-user login-time startup registration and connection setup forms.
+  Mobile UI is deferred.
 - Multi-device task routing beyond the capability-matching sketch in `docs/DEVICES.md`.

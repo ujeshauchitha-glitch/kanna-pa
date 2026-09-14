@@ -27,6 +27,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
 from copy import deepcopy
+import threading
 
 from core.agent.state import AgentState
 from core.agent.verifier import verify
@@ -66,7 +67,7 @@ class AgentLoop:
         self.max_corrections = max_corrections
         self._plan_repo = PlanRepository(ctx.db)
 
-    def run(self, request: str) -> AgentRunResult:
+    def run(self, request: str, *, cancel: threading.Event | None = None) -> AgentRunResult:
         self._emit(AgentState.UNDERSTANDING, request=request)
 
         self._emit(AgentState.PLANNING)
@@ -82,10 +83,16 @@ class AgentLoop:
 
         outcomes: list[StepOutcome] = []
         for index, step in enumerate(plan.steps):
+            # Checked here — before the next tool invocation or retry,
+            # never mid-call — so a step already in flight always runs to
+            # a real outcome; only work that hasn't started yet is
+            # actually skipped. See docs/DESKTOP.md's cancellation section.
+            if cancel is not None and cancel.is_set():
+                return self._cancelled(plan_id, plan, outcomes)
             try:
                 resolved_step = replace(step, args=resolve(
                     step.args, [o.result.to_dict() for o in outcomes]))
-                outcome = self._run_step(resolved_step)
+                outcome = self._run_step(resolved_step, cancel=cancel)
             except PlanningError as exc:
                 outcome = StepOutcome(step, ToolResult.fail("binding_failed", str(exc)), 0)
             outcomes.append(outcome)
@@ -97,6 +104,8 @@ class AgentLoop:
             )
 
             if not outcome.result.success:
+                if cancel is not None and cancel.is_set():
+                    return self._cancelled(plan_id, plan, outcomes)
                 self._plan_repo.set_status(plan_id, "failed")
                 reasons = verify(outcome.step, outcome.result, self.ctx)
                 blocker = "; ".join(reasons) if reasons else (
@@ -115,7 +124,17 @@ class AgentLoop:
             message=self._summarize(outcomes),
         )
 
-    def _run_step(self, step: PlanStep) -> StepOutcome:
+    def _cancelled(self, plan_id: str, plan: Plan, outcomes: list[StepOutcome]) -> AgentRunResult:
+        # Never claims a side effect already performed was undone — it
+        # wasn't, and this says so rather than staying silent about it.
+        self._plan_repo.set_status(plan_id, "cancelled")
+        self._emit(AgentState.CANCELLED, completed_steps=len(outcomes))
+        done = sum(1 for o in outcomes if o.result.success)
+        message = (f"Cancelled after {done} of {len(plan.steps)} step(s) completed. "
+                   "Actions already taken were not undone.")
+        return AgentRunResult(state=AgentState.CANCELLED, plan=plan, outcomes=outcomes, message=message)
+
+    def _run_step(self, step: PlanStep, *, cancel: threading.Event | None = None) -> StepOutcome:
         current = step
         history = []
         terminal_errors = {"approval_denied", "permission_denied", "sandbox_violation",
@@ -134,6 +153,11 @@ class AgentLoop:
             # ask a model to route around an approval or sandbox denial.
             if result.success or (result.error and (
                     result.error.code in terminal_errors or result.error.code.endswith("_unavailable"))):
+                break
+            # Checked before the next retry, never mid-call: the attempt
+            # that already ran is reported as-is; no further retry starts.
+            if cancel is not None and cancel.is_set():
+                self._emit(AgentState.CANCELLED, tool=current.tool_name, attempt=attempt)
                 break
             if attempt <= self.max_corrections:
                 current = self._revise(current, reasons)

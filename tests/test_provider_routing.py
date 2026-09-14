@@ -39,6 +39,54 @@ def test_provider_selection_respects_basic_mode():
         build_provider(Settings(llm_provider="rule_based"))
 
 
+# -- A hung/unreachable model server must not be able to block a call
+# forever — cooperative cancellation only checks *between* provider
+# calls, so each call needs its own bound. --
+
+def test_litellm_call_carries_a_timeout(monkeypatch):
+    calls = []
+    def complete(**kwargs):
+        calls.append(kwargs)
+        return response()
+    monkeypatch.setitem(sys.modules, "litellm", SimpleNamespace(completion=complete))
+    LiteLLMProvider(model="openai/gpt-4o-mini", timeout=45).complete([])
+    assert calls[0]["timeout"] == 45
+
+
+def test_litellm_timeout_none_omits_the_kwarg_entirely(monkeypatch):
+    calls = []
+    def complete(**kwargs):
+        calls.append(kwargs)
+        return response()
+    monkeypatch.setitem(sys.modules, "litellm", SimpleNamespace(completion=complete))
+    LiteLLMProvider(model="openai/gpt-4o-mini", timeout=None).complete([])
+    assert "timeout" not in calls[0]
+
+
+class _RecordingProvider:
+    """Stands in for a real provider class — captures its constructor
+    kwargs so build_provider()'s own forwarding logic is what's under
+    test, not the real provider's connection behavior."""
+
+    def __init__(self, **kwargs):
+        self.kwargs = kwargs
+
+    def _get_client(self):
+        pass
+
+
+def test_build_provider_passes_configured_timeout_to_litellm(monkeypatch):
+    monkeypatch.setattr("core.llm.litellm_provider.LiteLLMProvider", _RecordingProvider)
+    provider = build_provider(Settings(llm_provider="litellm", llm_timeout_seconds=77))
+    assert provider.kwargs["timeout"] == 77
+
+
+def test_build_provider_passes_configured_timeout_to_anthropic(monkeypatch):
+    monkeypatch.setattr("core.llm.anthropic_provider.AnthropicProvider", _RecordingProvider)
+    provider = build_provider(Settings(llm_provider="anthropic", llm_timeout_seconds=99))
+    assert provider.kwargs["timeout"] == 99
+
+
 def test_authoring_uses_configured_provider(ctx, monkeypatch):
     import json
     from core.llm.fake import FakeProvider

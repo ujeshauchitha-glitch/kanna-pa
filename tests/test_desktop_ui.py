@@ -11,7 +11,8 @@ from interfaces.desktop.app import KannaApp
 
 @pytest.fixture
 def app():
-    worker = SimpleNamespace(events=queue.Queue(), start=lambda: None, submit=lambda text: True)
+    worker = SimpleNamespace(events=queue.Queue(), start=lambda: None, submit=lambda text: True,
+                             cancel=lambda: True)
     try:
         app = KannaApp(worker=worker, integrations=False)
     except tk.TclError as exc:
@@ -33,6 +34,99 @@ def test_ready_draft_and_submit(app):
     assert app.status.cget("text") == "Task failed"
     assert not app.busy
     assert app.entry.get("1.0", "end-1c") == "list files in ."
+
+
+def test_cancel_button_enabled_only_while_busy(app):
+    assert app.cancel_btn.cget("state") == "disabled"
+    app.worker.events.put(("ready", {"planner": "RuleBasedPlanner", "model": "none", "roots": ["."], "tools": 1}))
+    app._poll()
+    app._draft("list files in .")
+    app._on_send()
+    assert app.cancel_btn.cget("state") == "normal"
+    app.worker.events.put(("result", {"state": "cancelled", "message": "Cancelled after 0 of 1 step(s) completed.", "files": []}))
+    app.worker.events.put(("idle", None))
+    app._poll()
+    assert app.cancel_btn.cget("state") == "disabled"
+    assert app.status.cget("text") == "Cancelled"
+
+
+def test_clicking_cancel_calls_worker_cancel_and_disables_itself(app):
+    calls = []
+    app.worker.cancel = lambda: (calls.append(1) or True)
+    app.worker.events.put(("ready", {"planner": "RuleBasedPlanner", "model": "none", "roots": ["."], "tools": 1}))
+    app._poll()
+    app._draft("list files in .")
+    app._on_send()
+    app._on_cancel()
+    assert calls == [1]
+    assert app.cancel_btn.cget("state") == "disabled"
+    assert "Cancelling" in app.status.cget("text")
+
+
+def test_cancel_click_when_worker_has_nothing_to_cancel_is_harmless(app):
+    app.worker.cancel = lambda: False
+    app._on_cancel()  # must not raise even though nothing is running
+
+
+def test_pending_approval_dialog_closes_when_gate_resolves_it_first(app):
+    from interfaces.desktop.worker import ApprovalRequest
+    request = ApprovalRequest("fs_delete", {"path": "x"}, "irreversible")
+    app.worker.events.put(("approval", request))
+    app._poll()
+    assert app._approval_dialog is not None
+    assert app._approval_dialog.winfo_exists()
+
+    app.worker.events.put(("approval_resolved", request))
+    app._poll()
+    assert app._approval_dialog is None
+    assert app._approval_request is None
+
+
+def _button_labeled(widget, text):
+    for child in widget.winfo_children():
+        if isinstance(child, tk.Button) and child.cget("text") == text:
+            return child
+        found = _button_labeled(child, text)
+        if found is not None:
+            return found
+    return None
+
+
+def test_approval_dialog_cancel_task_button_denies_and_requests_cancellation(app):
+    from interfaces.desktop.worker import ApprovalRequest
+    calls = []
+    app.worker.cancel = lambda: (calls.append(1) or True)
+    request = ApprovalRequest("fs_write_file", {"path": "x"}, "overwrite")
+    app.worker.events.put(("approval", request))
+    app._poll()
+
+    # The dialog is application-modal (grab_set) — the main window's own
+    # Cancel button is unreachable while it's open, so this must be
+    # reachable *from the dialog itself*.
+    button = _button_labeled(app._approval_dialog, "Cancel task")
+    assert button is not None
+    button.invoke()
+
+    assert calls == [1]
+    assert request.answered.is_set()
+    assert request.allowed is False
+    assert app._approval_dialog is None
+
+
+def test_approval_resolved_for_a_different_request_leaves_open_dialog_alone(app):
+    from interfaces.desktop.worker import ApprovalRequest
+    open_request = ApprovalRequest("fs_delete", {"path": "x"}, "irreversible")
+    other_request = ApprovalRequest("fs_delete", {"path": "y"}, "irreversible")
+    app.worker.events.put(("approval", open_request))
+    app._poll()
+    dialog = app._approval_dialog
+    assert dialog is not None
+
+    app.worker.events.put(("approval_resolved", other_request))
+    app._poll()
+    assert app._approval_dialog is dialog
+    assert dialog.winfo_exists()
+    dialog.destroy()
 
 
 def test_voice_only_fills_draft(app):

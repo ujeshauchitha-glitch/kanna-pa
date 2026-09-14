@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import threading
+
 from core.agent.loop import AgentLoop
 from core.agent.state import AgentState
 from core.errors import PlanningError
@@ -213,6 +215,112 @@ def test_correction_falls_back_to_identical_retry_when_revision_fails(ctx):
     # revise_step capability at all.
     assert result.state == AgentState.COMPLETE
     assert flaky.calls == 2
+
+
+class _SetsEventThenSucceedsTool:
+    """Succeeds, but sets a shared event as a side effect — used to
+    simulate cancellation being requested while this step was running."""
+    name = "test_sets_event"
+    description = "succeeds and sets an event"
+    permission = PermissionLevel.LOW
+    input_schema = obj({})
+    output_schema = obj({})
+
+    def __init__(self, event: threading.Event) -> None:
+        self.event = event
+
+    def execute(self, args, ctx):
+        self.event.set()
+        return ToolResult.ok({})
+
+
+class _CancelingFlakyTool:
+    """Fails every call, and requests cancellation after the first one —
+    proves a correction-retry loop stops instead of retrying once the
+    request arrives, without touching the attempt already in flight."""
+    name = "test_canceling_flaky"
+    description = "fails and requests cancellation on its first call"
+    permission = PermissionLevel.LOW
+    input_schema = obj({})
+    output_schema = obj({})
+
+    def __init__(self, cancel_event: threading.Event) -> None:
+        self.cancel_event = cancel_event
+        self.calls = 0
+
+    def execute(self, args, ctx):
+        self.calls += 1
+        if self.calls == 1:
+            self.cancel_event.set()
+        return ToolResult.fail("transient_error", "not ready yet")
+
+
+# -- Cooperative cancellation: checked between steps/retries, never mid-call --
+
+def test_cancel_set_before_run_skips_every_step(ctx):
+    registry = ToolRegistry()
+    registry.register(_AlwaysSucceedsTool())
+    plan = Plan(request="do it", steps=[PlanStep(tool_name="test_always_succeeds", args={})])
+    cancel = threading.Event()
+    cancel.set()
+    loop = AgentLoop(registry, _FixedPlanPlanner(plan), ctx)
+
+    result = loop.run("do it", cancel=cancel)
+
+    assert result.state == AgentState.CANCELLED
+    assert result.outcomes == []
+    assert "0 of 1" in result.message
+    assert ctx.db.query_one("SELECT status FROM plans")["status"] == "cancelled"
+
+
+def test_cancel_between_steps_never_starts_the_next_one(ctx):
+    registry = ToolRegistry()
+    cancel = threading.Event()
+    registry.register(_SetsEventThenSucceedsTool(cancel))
+    registry.register(_AlwaysSucceedsTool())
+    plan = Plan(request="do it", steps=[
+        PlanStep(tool_name="test_sets_event", args={}),
+        PlanStep(tool_name="test_always_succeeds", args={}),
+    ])
+    loop = AgentLoop(registry, _FixedPlanPlanner(plan), ctx)
+
+    result = loop.run("do it", cancel=cancel)
+
+    assert result.state == AgentState.CANCELLED
+    # The first step ran to completion and its (real) success is kept —
+    # cancellation never claims a completed side effect was undone.
+    assert len(result.outcomes) == 1
+    assert result.outcomes[0].result.success
+    assert "1 of 2" in result.message
+    assert ctx.db.query_one("SELECT status FROM plans")["status"] == "cancelled"
+
+
+def test_cancel_stops_correction_retries_not_the_in_flight_attempt(ctx):
+    registry = ToolRegistry()
+    cancel = threading.Event()
+    tool = _CancelingFlakyTool(cancel)
+    registry.register(tool)
+    plan = Plan(request="do it", steps=[PlanStep(tool_name="test_canceling_flaky", args={})])
+    loop = AgentLoop(registry, _FixedPlanPlanner(plan), ctx, max_corrections=5)
+
+    result = loop.run("do it", cancel=cancel)
+
+    assert result.state == AgentState.CANCELLED
+    assert tool.calls == 1  # the attempt already running finished normally; no retry started
+    assert "not undone" in result.message
+
+
+def test_no_cancel_argument_behaves_exactly_as_before(ctx):
+    """Every existing caller that doesn't pass `cancel` must see identical
+    behavior — cancellation is strictly additive."""
+    registry = ToolRegistry()
+    registry.register(_AlwaysSucceedsTool())
+    plan = Plan(request="do it", steps=[PlanStep(tool_name="test_always_succeeds", args={})])
+    loop = AgentLoop(registry, _FixedPlanPlanner(plan), ctx)
+
+    result = loop.run("do it")  # no cancel kwarg at all
+
+    assert result.state == AgentState.COMPLETE
 
 
 def test_correction_without_revision_capability_retries_identically(ctx):

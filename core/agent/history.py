@@ -116,6 +116,8 @@ def get_run(db: Database, plan_id: str) -> RunDetail | None:
             data = result.get("data", {})
             note = data.get("message")
             message = note if isinstance(note, str) else "Completed."
+        elif plan_row["status"] == "cancelled":
+            message = "Not run — the task was cancelled first."
         else:
             message = "Not run — an earlier step failed first."
         steps.append(RunStep(tool_name=row["tool_name"], status=row["status"],

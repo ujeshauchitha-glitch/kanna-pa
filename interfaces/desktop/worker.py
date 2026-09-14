@@ -24,16 +24,22 @@ class ApprovalRequest:
 
 
 class DesktopGate:
-    def __init__(self, events, stopped):
-        self.events, self.stopped = events, stopped
+    def __init__(self, events, stopped, cancel):
+        self.events, self.stopped, self.cancel = events, stopped, cancel
 
     def approve(self, *, tool_name, args, level, reason):
         request = ApprovalRequest(tool_name, args, reason)
         self.events.put(("approval", request))
         while not request.answered.wait(0.1):
-            if self.stopped.is_set():
-                return False
-        return request.allowed and not self.stopped.is_set()
+            if self.stopped.is_set() or self.cancel.is_set():
+                # Nobody is going to answer a dialog for a task that's
+                # being cancelled or an app that's shutting down — deny
+                # it and tell the UI so an open dialog closes itself
+                # instead of sitting there uselessly.
+                request.respond(False)
+                self.events.put(("approval_resolved", request))
+                break
+        return request.allowed and not self.stopped.is_set() and not self.cancel.is_set()
 
 
 def compose_request(text: str, attachments: list[str]) -> str:
@@ -67,6 +73,7 @@ class DesktopWorker:
         self.events = queue.Queue()
         self._commands = queue.Queue()
         self._stop = threading.Event()
+        self._cancel = threading.Event()
         self._factory = factory
         self._lock = threading.Lock()
         self._busy = False
@@ -84,6 +91,16 @@ class DesktopWorker:
             self._commands.put(text)
             return True
 
+    def cancel(self) -> bool:
+        """Request cancellation of the task currently running. A no-op
+        (returns False) if nothing is actually running — there's no
+        queue of pending cancellations to apply to a future task."""
+        with self._lock:
+            if not self._busy:
+                return False
+            self._cancel.set()
+            return True
+
     def close(self):
         self._stop.set()
         self._commands.put(None)
@@ -92,7 +109,7 @@ class DesktopWorker:
         kanna = None
         session = None
         try:
-            kanna = self._factory(gate=DesktopGate(self.events, self._stop))
+            kanna = self._factory(gate=DesktopGate(self.events, self._stop, self._cancel))
             session = AgentSession(kanna.db, {"source": "desktop"})
             kanna.event_bus.subscribe("agent.state.", lambda event: self.events.put(
                 ("progress", {"state": event.topic.rsplit(".", 1)[-1], **event.payload})))
@@ -104,9 +121,10 @@ class DesktopWorker:
                 text = self._commands.get()
                 if text is None or self._stop.is_set():
                     break
+                self._cancel.clear()
                 try:
                     session.log_user_message(text)
-                    result = kanna.agent_loop(session_id=session.id).run(text)
+                    result = kanna.agent_loop(session_id=session.id).run(text, cancel=self._cancel)
                     session.log_assistant_message(result.message)
                     payload = {"state": result.state.value, "message": result.message,
                                "files": verified_artifacts(result, kanna.sandbox),

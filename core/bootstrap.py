@@ -35,6 +35,7 @@ from finance import tools as finance_tools
 from tools import filesystem, process
 from tools.browser import tools as browser_tools
 from tools.computer import tools as computer_tools
+from tools.computer import phone_tools
 from tools.scaffold import tools as scaffold_tools
 from tools.authoring import tools as authoring_tools
 from vision import tools as vision_tools
@@ -73,6 +74,7 @@ def build_registry(*, gate: ApprovalGate | None = None,
     document_tools.register_all(registry)
     document_reader.register_all(registry)
     computer_tools.register_all(registry)
+    phone_tools.register_all(registry)
     browser_tools.register_all(registry)
     vision_tools.register_all(registry)
     scaffold_tools.register_all(registry)

@@ -26,8 +26,12 @@ tools/
   filesystem/   read, write, list, search, mkdir, info, delete — all sandboxed
   process/      Controlled subprocess execution (allowlisted executables, no shell, timeout)
   computer/     ComputerAgent protocol, FedoraAgent (real, X11 via xdotool/scrot/xclip),
-                NullComputerAgent (honest "unavailable"), FakeComputerAgent (tests),
-                get_computer_agent() (backend selection), tools.py (registry-exposed computer_* tools)
+                WindowsAgent (real, PowerShell/.NET), NullComputerAgent (honest "unavailable"),
+                FakeComputerAgent (tests), get_computer_agent() (Fedora/Windows/Null selection),
+                tools.py (registry-exposed computer_* tools); phone.py's AdbPhoneAgent (real, via
+                adb — see docs/DEVICES.md for its unverified-against-hardware status) and
+                phone_tools.py (registry-exposed phone_* tools) are a separate namespace, not part
+                of get_computer_agent()'s selection chain
   browser/      BrowserAgent protocol, PlaywrightBrowserAgent (real, Chromium-based),
                 FakeBrowserAgent (tests), get_browser_agent() (process-level singleton session),
                 tools.py (registry-exposed browser_* tools)

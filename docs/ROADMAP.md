@@ -63,9 +63,14 @@ install can't actually convert anything — see `docs/DOCUMENTS.md`). Everything
 ## Computer control (done, Phase 2) — what's left in this area
 
 - Two backends (`FedoraAgent` for X11/Linux, `WindowsAgent` for PowerShell/Windows) and one
-  fallback (`NullComputerAgent`). No `PhoneAgent`, and no full router that picks a device by
-  capability (`get_computer_agent()` checks Fedora → Windows → Null in order, not a selection
-  across multiple *registered* devices).
+  fallback (`NullComputerAgent`), selected by `get_computer_agent()` (Fedora → Windows → Null in
+  order, not a capability-based selection across multiple *registered* devices).
+- A `PhoneAgent` (`AdbPhoneAgent`, via `adb`) now exists too, as a separate `phone_*` tool
+  namespace rather than a candidate in `get_computer_agent()`'s chain — see
+  "Phone/device backend" below and `docs/DEVICES.md` for why, and for its validation status
+  (**built but unverified against real hardware** — no `/dev/kvm` and the SDK's download hosts are
+  network-blocked in the sandbox it was built in). The full capability-based router across all
+  registered devices (desktop + phone + anything future) still doesn't exist.
 - Wayland desktops without XWayland aren't supported (`xdotool`/`scrot`/`xclip` are X11 tools) — most
   Wayland compositors, including Fedora's default GNOME session, do run XWayland, so this covers more
   than it sounds like, but a native-Wayland backend (`wtype`/`grim`/`wl-clipboard`) isn't built.
@@ -159,13 +164,22 @@ a real request timeout so a hung model server can't defeat it), per-user startup
 editable connection-settings form (provider/model/fallback/timeout, writing to `config.toml` via a
 narrow scalar-line writer, `core.config.settings.update_config_file`) — see `docs/DESKTOP.md`.
 **The desktop-access milestone from the original brief is now complete**, including the connection
-setup forms called out as a follow-up.
+setup forms called out as a follow-up. A `PhoneAgent` (`AdbPhoneAgent`, real `adb`-shell-command
+automation of a connected Android device, exposed as its own `phone_*` tool namespace — see
+`docs/DEVICES.md`) is now built too, but **unverified against real hardware**: the build
+environment has no `/dev/kvm` (no emulator acceleration at all) and its network egress policy
+blocks the Android SDK's own download hosts, so a live device was categorically unreachable there.
+What could be verified for real was: the actual `adb` client binary (installed from Ubuntu's own
+repos), correctly reporting zero devices with nothing attached; every command's construction/parsing
+against a mocked subprocess; and the full registry/tool path cleanly reporting
+`CapabilityUnavailable` end to end. Someone with a real device or a working emulator needs to run it
+before it's trusted the way `FedoraAgent`/`WindowsAgent` are.
 
-1. **Phone/device backend** and the full capability-based router across all registered devices, now
-   that Fedora and Windows backends have validated the `ComputerAgent` interface in practice — the
-   next-highest-leverage item, and the only one left from the original brief's device-backend list.
-   Needs real hardware or an emulator to validate against before it can be built to the same bar
-   every other capability here was held to; none is available in this build environment yet.
+1. **Verify `AdbPhoneAgent` against real hardware or an emulator**, and build the full
+   capability-based router across all registered devices (desktop + phone) — the only item left
+   from the original brief's device-backend list. The router itself is still unbuilt; today phone
+   control must be invoked explicitly via `phone_*` tools rather than picked automatically by intent
+   ("take a picture of this receipt" doesn't yet select a phone on its own).
 
 ## Explicitly deferred, no strong opinion yet
 

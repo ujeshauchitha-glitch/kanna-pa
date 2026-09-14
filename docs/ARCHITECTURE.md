@@ -84,8 +84,11 @@ deliberately not created until there's real code to put in them — see `docs/RO
 
 `interfaces/desktop` contains a Tk task workspace and a single-owner execution worker. Agent state,
 approval requests, results, and voice transcripts cross queues into the UI thread. AgentSession
-persists desktop requests/results. `core/llm/factory.py` selects providers consistently for planning,
-authoring, and assignment solving. See `docs/DESKTOP.md` for the lifecycle and permission boundaries.
+persists desktop requests/results. `singleton.py` is a real, OS-level single-instance guard (a
+loopback socket, not a UI check); `hotkey.py` is the cross-platform global-hotkey abstraction
+(real Windows and X11 backends, honest `NullHotkeyBackend` elsewhere). `core/llm/factory.py` selects
+providers consistently for planning, authoring, and assignment solving. See `docs/DESKTOP.md` for the
+lifecycle and permission boundaries.
 
 ## The agent loop
 

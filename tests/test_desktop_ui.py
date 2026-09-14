@@ -48,3 +48,20 @@ def test_minimum_window_keeps_composer_visible(app):
     assert app.send_btn.winfo_ismapped()
     assert app.artifacts.winfo_ismapped()
     assert app.output.winfo_height() >= 80
+
+
+def test_real_hotkey_registration_never_raises_and_cleans_up():
+    """integrations=True exercises the real create_hotkey_backend() wiring
+    (not the fixture's integrations=False path). On a live X11 session
+    this actually grabs the configured combo; anywhere else it logs an
+    explained NullHotkeyBackend reason instead — either way, construction
+    and teardown must never raise."""
+    worker = SimpleNamespace(events=queue.Queue(), start=lambda: None, submit=lambda text: True)
+    try:
+        app = KannaApp(worker=worker, integrations=True)
+    except tk.TclError as exc:
+        pytest.skip(f"Tk runtime/display unavailable: {exc}")
+    try:
+        assert app._hotkey_backend is not None
+    finally:
+        app._destroy()

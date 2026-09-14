@@ -12,6 +12,8 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, scrolledtext, ttk
 
 from core.permissions.sandbox import Sandbox
+from interfaces.desktop.hotkey import configured_hotkey, create_hotkey_backend
+from interfaces.desktop.singleton import SingleInstanceGuard
 from interfaces.desktop.worker import DesktopWorker, compose_request
 
 BG = "#10151d"
@@ -39,7 +41,7 @@ class KannaApp:
         self.closing = False
         self.last_result = ""
         self.tray_icon = None
-        self._hotkey = False
+        self._hotkey_backend = None
         self._build_ui()
         self.root.bind("<Configure>", self._resize)
         if integrations:
@@ -391,18 +393,15 @@ class KannaApp:
             self.tray_icon = None
 
     def _setup_hotkey(self):
-        if sys.platform == "win32":
-            import ctypes
-            self._hotkey = bool(ctypes.windll.user32.RegisterHotKey(None, 1, 0x0006, 0x4B))
-            if self._hotkey:
-                self._poll_hotkey()
+        self._hotkey_backend = create_hotkey_backend(self._restore)
+        reason = self._hotkey_backend.register()
+        if reason:
+            self._log(f"Global hotkey ({configured_hotkey()}) not active: {reason}", "info")
+        else:
+            self._poll_hotkey()
 
     def _poll_hotkey(self):
-        import ctypes
-        from ctypes import wintypes
-        msg = wintypes.MSG()
-        if ctypes.windll.user32.PeekMessageW(ctypes.byref(msg), None, 0x0312, 0x0312, 1):
-            self._restore()
+        self._hotkey_backend.poll()
         if not self.closing:
             self.root.after(100, self._poll_hotkey)
 
@@ -429,9 +428,8 @@ class KannaApp:
     def _destroy(self):
         if self.tray_icon:
             self.tray_icon.stop()
-        if self._hotkey:
-            import ctypes
-            ctypes.windll.user32.UnregisterHotKey(None, 1)
+        if self._hotkey_backend is not None:
+            self._hotkey_backend.unregister()
         self.root.destroy()
 
     def run(self):
@@ -439,11 +437,36 @@ class KannaApp:
 
 
 def main():
+    from core.config import paths
+
+    # A loopback-socket guard, not a UI-level check: a second launch
+    # never constructs a worker or a window at all, so there is no
+    # window to duplicate work even before Tk enters the picture.
+    guard = SingleInstanceGuard(paths.kanna_home())
+    if not guard.acquired:
+        if guard.notify_existing():
+            print("Kanna is already running — bringing its window to the front.", file=sys.stderr)
+        else:
+            print("Kanna appears to already be running, but the running instance did not "
+                  "respond. If it's stuck, close its process and try again.", file=sys.stderr)
+        return 0
+
     try:
-        KannaApp().run()
+        app = KannaApp()
     except tk.TclError as exc:
+        guard.close()
         print(f"Desktop unavailable: {exc}. Install Python with Tcl/Tk support.", file=sys.stderr)
         return 1
+
+    # Worker/tray/hotkey callbacks all reach the UI the same way: put an
+    # event on the queue the Tk main loop already polls. This one is no
+    # different, even though it originates from a background socket
+    # thread instead of the worker.
+    guard.start(lambda: app.worker.events.put(("show", None)))
+    try:
+        app.run()
+    finally:
+        guard.close()
     return 0
 
 
